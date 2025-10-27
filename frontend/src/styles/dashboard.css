@@ -1,0 +1,369 @@
+/* --- Global Dashboard Styles --- */
+.dashboard {
+  background-color: #f9fafb; /* Light gray background */
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  color: #374151;
+  width: 100%; /* Ensures dashboard takes full width of its container */
+  min-height: 100vh; /* Ensures it takes full height */
+  box-sizing: border-box; /* Include padding in width calculation */
+}
+
+/* --- Card Base Style --- */
+.card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  border: 1px solid #f3f4f6;
+  transition: all 0.2s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  padding: 24px;
+  padding-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  padding-bottom: 20px;
+}
+
+.card-header .card-title {
+  padding: 0;
+}
+
+.count-badge {
+  background-color: #eef2ff;
+  color: #4f46e5;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 99px;
+}
+
+.card-content {
+  padding: 0 24px 24px 24px;
+}
+
+/* --- Dashboard Header --- */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  gap: 16px;
+}
+
+.header-title h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.header-title p {
+  font-size: 0.95rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.header-last-updated {
+  font-size: 0.8rem;
+  font-weight: 500;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0; /* Prevents shrinking */
+}
+
+/* --- Stat Cards Grid --- */
+.stat-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.stat-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  border-left: 5px solid var(--card-color, #e5e7eb);
+}
+
+.stat-card:hover {
+  transform: translateY(-4px); /* Keep hover effect from base card */
+  border-left-width: 8px; /* Make border thicker on hover */
+}
+
+.stat-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 8px;
+}
+
+.stat-subvalue {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background-color: var(--card-color, #e5e7eb);
+  color: #ffffff !important;
+  opacity: 0.2;
+}
+
+/* --- Main Dashboard Grid --- */
+.dashboard-main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.main-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0; /* Prevents chart overflow */
+}
+
+.main-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* --- Sales Trend Chart --- */
+.chart-container {
+  width: 100%;
+  height: 300px;
+  padding: 0 12px 12px 0;
+}
+
+/* --- Recent Sales Card --- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #9ca3af;
+}
+
+.empty-icon {
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.sales-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.sales-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.2s ease;
+}
+.sales-list-item:hover {
+  background-color: #fafafa;
+}
+.sales-list-item:last-child {
+  border-bottom: none;
+}
+.sale-info {
+  display: flex;
+  flex-direction: column;
+}
+.sale-customer {
+  font-weight: 500;
+  color: #374151;
+}
+.sale-date {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.sale-total {
+  font-weight: 600;
+  color: #10b981;
+}
+
+/* --- Payment Methods Card --- */
+.empty-state-small {
+  padding: 0 24px 24px 24px;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+/* --- Business Summary Card --- */
+.business-summary-card .card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* Increased gap between items */
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  /* Removed gap here, will use justify-content */
+  justify-content: space-between; /* Pushes icon/text away from value */
+  border-radius: 8px;
+  padding: 12px;
+  transition: background-color 0.2s ease;
+}
+.summary-item:hover {
+  background-color: #f8f8f8;
+}
+
+/* Group icon and text together */
+.summary-item-left {
+    display: flex;
+    align-items: center;
+    gap: 16px; /* Gap between icon and text */
+}
+
+.summary-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #374151;
+}
+
+/* Keep icon colors */
+.summary-icon-wrapper[style*='#dbeafe'] { color: #3b82f6; }
+.summary-icon-wrapper[style*='#ede9fe'] { color: #8b5cf6; }
+.summary-icon-wrapper[style*='#fee2e2'] { color: #ef4444; }
+.summary-icon-wrapper[style*='#dcfce7'] { color: #22c55e; }
+
+.summary-text {
+  /* Removed flex-grow: 1 */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+.summary-title {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
+}
+.summary-subtitle {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.summary-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  /* Removed margin-left: auto */
+  /* Removed padding-left */
+}
+
+/* --- RESPONSIVE MEDIA QUERIES --- */
+
+/* For small laptops / large tablets */
+@media (max-width: 1024px) {
+  .stat-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dashboard-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* For tablets and mobile phones */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px;
+  }
+  
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stat-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-title {
+    padding: 20px;
+    padding-bottom: 16px;
+  }
+  .card-header {
+    padding: 20px;
+    padding-bottom: 16px;
+  }
+  .card-content {
+    padding: 0 20px 20px 20px;
+  }
+  .empty-state-small {
+    padding: 0 20px 20px 20px;
+  }
+  
+  /* Adjust summary item spacing on mobile */
+  .summary-item {
+    gap: 12px;
+    padding: 10px;
+  }
+  .summary-item-left {
+      gap: 12px; /* Smaller gap on mobile */
+  }
+  .summary-value {
+     /* padding-left: 12px; Still removed */
+     font-size: 0.95rem; /* Slightly smaller value text */
+  }
+}
+

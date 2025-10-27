@@ -1,0 +1,230 @@
+/* src/styles/login.css
+   Full, cleaned & edited login styles.
+   - Icon + decorative circle sit above title & subtitle
+   - Background covers full viewport
+   - Variables prefixed with --am- to avoid collisions
+*/
+
+:root{
+  --am-bg: #0b1220;               /* radial overlay base */
+  --am-accent: #5561ff;           /* primary accent */
+  --am-accent-2: #7e6bff;         /* gradient end */
+  --am-card-bg: #ffffff;          /* card background */
+  --am-card-radius: 14px;         /* card radius */
+  --am-text: #1f2d3d;             /* primary dark text for card */
+  --am-muted: #778899;            /* muted text */
+  --am-input-border: #e6eef8;     /* input border */
+  --am-input-focus: #c8d7ff;      /* input focus ring */
+  --am-shadow: 0 10px 30px rgba(8,15,30,0.45);
+  --am-error: #e02424;
+  --am-card-padding: 36px;
+  --am-icon-bg: linear-gradient(180deg, rgba(85,97,255,0.12), rgba(126,107,255,0.08));
+  --am-icon-fill: #2b6fff;
+  --am-demo-bg: #f3f6fb;
+}
+
+/* Ensure page containers are full height so min-height:100vh works reliably */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Page container (login) — full viewport background and centered content */
+.auth-main{
+  width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* background fills whole viewport and stays fixed */
+  background:
+    radial-gradient(circle at 10% 10%, rgba(10,20,40,0.65), transparent 20%),
+    linear-gradient(180deg, var(--am-bg), #071026 80%);
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
+
+  padding: 40px 20px;
+  box-sizing: border-box;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color: var(--am-text);
+}
+
+/* Card */
+.auth-card{
+  width: 480px;
+  max-width: calc(100% - 48px);
+  background: var(--am-card-bg);
+  border-radius: var(--am-card-radius);
+  padding: var(--am-card-padding);
+  box-shadow: var(--am-shadow);
+  box-sizing: border-box;
+  position: relative;
+  overflow: visible;
+}
+
+/* -------- header: icon above title/subtitle -------- */
+.auth-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  margin: 0 0 12px;
+  position: relative;
+}
+
+/* decorative soft circular background behind the icon */
+.auth-head::before {
+  content: "";
+  display: block;
+  width: 120px;
+  height: 120px;
+ ;
+
+  
+  
+  
+}
+
+/* main icon that sits visually on top of the decorative circle */
+.auth-icon {
+  width: 90px;
+  height: 90px;
+  border-radius: 999px;
+  background: var(--am-icon-fill);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* pull the icon upward so it sits centered inside the ::before circle */
+  margin-top: -96px;    /* (circleHeight/2 + iconHeight/2) * -1 + small offset */
+  margin-bottom: 12px;
+  box-shadow: 0 6px 18px rgba(43,111,255,0.08);
+  z-index: 1;
+}
+
+/* Title & subtitle (now below the icon) */
+.auth-title{
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--am-text);
+  z-index: 2;
+  line-height: 1.1;
+}
+.auth-subtitle{
+  font-size: 14px;
+  color: var(--am-muted);
+  margin: 0 0 20px;
+  line-height: 1.3;
+  z-index: 2;
+}
+
+/* form layout */
+.auth-form{ display: block; }
+
+.auth-field{ margin-bottom: 16px; position: relative; }
+
+/* inputs */
+.auth-input{
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--am-input-border);
+  background: linear-gradient(180deg,#ffffff,#fbfdff);
+  outline: none;
+  font-size: 14px;
+  color: var(--am-text);
+  box-shadow: inset 0 1px 0 rgba(16,24,40,0.02);
+  transition: box-shadow .12s ease, border-color .12s ease, transform .06s ease;
+  box-sizing: border-box;
+}
+.auth-input::placeholder{ color: #bfcbe0; font-weight: 500; }
+
+.auth-input:focus{
+  border-color: var(--am-input-focus);
+  box-shadow: 0 0 0 4px rgba(120,140,255,0.06);
+  transform: translateY(-1px);
+}
+
+/* password field with toggle */
+.auth-field--password{ display: flex; align-items: center; gap: 8px; }
+.auth-field--password .auth-input{ flex: 1; }
+
+/* toggle button */
+.auth-toggle{
+  background: transparent;
+  border: none;
+  color: var(--am-accent);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* links / forgot password */
+.auth-links{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom: 14px;
+}
+.auth-link-btn{
+  background: transparent;
+  border: none;
+  color: var(--am-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 0;
+  text-decoration: underline dotted rgba(0,0,0,0.06);
+}
+
+/* error text */
+.auth-error{ color: var(--am-error); font-size: 13px; margin: 6px 0 10px; }
+
+/* primary button */
+.auth-btn{
+  width: 100%;
+  display:block;
+  background: linear-gradient(90deg, var(--am-accent) 0%, var(--am-accent-2) 100%);
+  color: white;
+  border: none;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(85,97,255,0.16);
+  transition: transform .08s ease, box-shadow .08s ease, opacity .08s ease;
+}
+.auth-btn[disabled]{ opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+.auth-btn:not([disabled]):hover{ transform: translateY(-3px); box-shadow: 0 12px 30px rgba(85,97,255,0.2); }
+
+/* demo credentials box */
+.auth-demo{
+  margin-top: 18px;
+  background: var(--am-demo-bg);
+  border-radius: 8px;
+  padding: 12px;
+  color: #364a63;
+  font-size: 13px;
+  border: 1px solid rgba(15,30,60,0.04);
+}
+
+/* responsive tweaks */
+@media (max-width:520px){
+  .auth-card{ padding: 22px; width: calc(100% - 28px); border-radius: 12px; }
+  .auth-head::before{ width:92px;height:92px; box-shadow: 0 6px 14px rgba(43,111,255,0.06); }
+  .auth-icon{ width:56px;height:56px; margin-top:-76px; margin-bottom:10px; }
+  .auth-title{ font-size:18px; }
+}
+
+/* small utilities */
+.text-muted{ color: var(--am-muted); font-size:13px; }
+.small{ font-size:12px; color: #98a6bf; }

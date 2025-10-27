@@ -1,0 +1,26 @@
+/* src/components/Layout.css */
+
+.layout-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  /* Add padding-left to push main content away from the fixed sidebar */
+  padding-left: var(--sidebar-width); 
+  transition: padding-left var(--transition-speed) ease-in-out; /* Match sidebar transition */
+  box-sizing: border-box; /* Ensure padding is included */
+}
+
+.main-content {
+  flex-grow: 1; /* Make main content take remaining space */
+  /* REMOVED height and overflow-y from here */
+  min-width: 0; /* Important for preventing overflow with flexbox */
+  box-sizing: border-box;
+}
+
+/* Adjust padding when sidebar collapses */
+@media (max-width: 768px) {
+  .layout-container {
+    padding-left: var(--sidebar-width-collapsed);
+  }
+}
+

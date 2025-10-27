@@ -1,0 +1,65 @@
+/* src/index.css */
+/* Minimal global styles */
+
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark; /* Allows OS to control dark/light mode */
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Set default background/text for light mode */
+  --global-bg: #f9fafb; /* Light gray to match dashboard */
+  --global-text: #213547;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--global-bg);
+  color: var(--global-text);
+  box-sizing: border-box; /* Apply box-sizing globally */
+}
+
+*, *::before, *::after {
+    box-sizing: inherit; /* Ensure all elements use border-box */
+}
+
+/* Make #root take full width/height ONLY */
+#root {
+  min-height: 100vh;
+  width: 100%; /* Explicitly set width */
+  display: flex; /* Needed for Layout's flexbox */
+}
+
+/* Specific centering for LOGIN page ONLY */
+/* Add className="auth-root" to the top-level div in your LoginPage component */
+.auth-root {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+   /* Optional: Background for login page */
+  /* background-color: #242424; */
+  /* color: rgba(255, 255, 255, 0.87); */
+}
+
+
+/* Dark mode variables (Optional, if you want dark mode support) */
+@media (prefers-color-scheme: dark) {
+  :root {
+     --global-bg: #242424; /* Dark background */
+     --global-text: rgba(255, 255, 255, 0.87);
+  }
+   /* .auth-root could potentially override body background here if needed */
+}
+
