@@ -1,0 +1,278 @@
+/* suppliers.css — refined, high-contrast, professional UI */
+
+/* ---------- Theme variables ---------- */
+:root{
+  --sp-bg: #f7fafc;            /* page background */
+  --sp-card: #ffffff;          /* card background (solid) */
+  --sp-text: #213547;          /* primary body text (darker) */
+  --sp-strong: #0f1724;        /* headings, important text */
+  --sp-muted: #607085;         /* secondary text */
+  --sp-border: #e6eef6;        /* card/table borders (solid) */
+
+  --sp-purple: #4f46e5;       /* primary accent (solid) */
+  --sp-purple-600: #3f3bd6;
+  --sp-red: #dc2626;
+  --sp-green: #059669;
+
+  --sp-radius: 12px;
+  --sp-shadow: 0 10px 30px rgba(16,24,40,0.08); /* subtle, not overpowering */
+  --sp-elev: 0 6px 18px rgba(16,24,40,0.06);
+
+  --sp-gap: 14px;
+  --sp-sm: 12px;
+  --sp-base-font: 15px;
+}
+
+/* ---------- Page ---------- */
+.sp-page {
+  padding: 32px;
+  background: var(--sp-bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+  color: var(--sp-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: var(--sp-base-font);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* ---------- Header ---------- */
+.sp-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:18px;
+  margin-bottom:18px;
+}
+.sp-header h2 {
+  margin:0;
+  font-size:22px;
+  font-weight:700;
+  color:var(--sp-strong);
+  letter-spacing: -0.2px;
+}
+.sp-sub {
+  margin:0;
+  color:var(--sp-muted);
+  font-size:0.95rem;
+}
+
+/* ---------- Actions & Stats ---------- */
+.sp-actions { display:flex; align-items:center; gap:14px; }
+.sp-stats { display:flex; gap:12px; align-items:center; }
+
+.sp-stat-card {
+  background: var(--sp-card);
+  padding:12px 18px;
+  border-radius:10px;
+  border:1px solid var(--sp-border);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  box-shadow: var(--sp-elev);
+  min-width:120px;
+}
+.sp-stat-card .sp-stat-title { font-size:0.9rem; color:var(--sp-muted); font-weight:600; }
+.sp-stat-card .sp-stat-value { font-size:1.25rem; font-weight:800; color:var(--sp-strong); }
+
+.sp-stat-card.c-purple { border-left: 6px solid var(--sp-purple); }
+.sp-stat-card.c-green  { border-left: 6px solid var(--sp-green); }
+.sp-stat-card.c-red    { border-left: 6px solid var(--sp-red); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display:inline-flex;
+  gap:8px;
+  align-items:center;
+  padding:10px 14px;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+  border: none;
+  font-size:0.95rem;
+  transition: transform .08s ease, box-shadow .08s ease;
+  user-select: none;
+}
+.sp-btn-primary {
+  background: var(--sp-purple);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(79,70,229,0.14); /* solid color shadow */
+}
+.sp-btn-primary:hover { transform: translateY(-2px); background: var(--sp-purple-600); }
+.sp-btn-muted {
+  background: var(--sp-card);
+  color: var(--sp-strong);
+  border: 1px solid var(--sp-border);
+}
+.sp-btn-muted:hover { background:#fafbff; }
+
+/* ---------- Search ---------- */
+.sp-search-row { margin:18px 0; }
+.sp-search {
+  background: var(--sp-card);
+  padding:10px 12px;
+  border-radius:12px;
+  border: 1px solid var(--sp-border);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  box-shadow: var(--sp-elev);
+}
+.sp-search input {
+  border:none; outline:none; width:100%;
+  font-size:0.95rem; color:var(--sp-text);
+  background:transparent;
+  caret-color:var(--sp-purple);
+}
+.sp-search-icon { color:var(--sp-muted); }
+
+/* ---------- Table Card ---------- */
+.sp-table-card {
+  padding: 16px;
+  border-radius:12px;
+  background:var(--sp-card);
+  border:1px solid var(--sp-border);
+  box-shadow: var(--sp-shadow);
+}
+
+.sp-table-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+  gap:12px;
+}
+.sp-table-title {
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--sp-strong);
+}
+
+/* ---------- Table ---------- */
+.sp-table-wrap { overflow:auto; border-radius:10px; }
+.sp-table {
+  width:100%;
+  border-collapse:collapse;
+  min-width:920px;
+  font-size:0.95rem;
+  background: var(--sp-card);
+}
+.sp-table thead th {
+  text-align:left;
+  padding:14px 12px;
+  color:var(--sp-muted);
+  font-weight:700;
+  border-bottom: 1px solid var(--sp-border);
+  background: var(--sp-card);
+}
+.sp-table tbody td {
+  padding:14px 12px;
+  color:var(--sp-text);
+  border-bottom:1px solid #f4f7fb;
+  vertical-align:middle;
+}
+
+/* row hover/focus */
+.sp-table tbody tr {
+  transition: background .12s ease, transform .08s ease, box-shadow .12s ease;
+  background: transparent;
+}
+.sp-table tbody tr:hover {
+  background: #ffffff; /* keep solid */
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(16,24,40,0.06);
+}
+
+/* better row striping for readability (very subtle solid) */
+.sp-table tbody tr:nth-child(even) td { background: #fcfdff; }
+
+/* responsive: ensure important columns are visible on smaller widths */
+.sp-prodcol { display:flex; align-items:center; gap:12px; }
+.sp-prod-name { font-weight:700; color:var(--sp-strong); }
+
+/* highlight out-of-stock or low stock rows with strong solid tints */
+.sp-table tbody tr.out td { background: #fff5f5; }   /* out-of-stock: warm red tint */
+.sp-table tbody tr.low td { background: #fffaf0; }   /* low-stock: warm yellow tint */
+
+/* ---------- Actions column ---------- */
+.sp-actions-col { text-align:right; width:170px; }
+.icon-btn {
+  background:transparent; border:none; padding:8px; cursor:pointer;
+  color:var(--sp-muted); border-radius:8px; display:inline-grid; place-items:center;
+  transition: background .12s ease, color .12s ease, transform .06s ease;
+}
+.icon-btn:hover { background:#f3f6ff; color:var(--sp-strong); transform: translateY(-2px); }
+.icon-btn.danger { color:var(--sp-red); }
+.icon-btn.danger:hover { background:#fff5f5; color:var(--sp-red); }
+
+/* ---------- Empty state ---------- */
+.sp-empty { padding:48px; text-align:center; color:var(--sp-muted); font-weight:600; }
+
+/* ---------- Modal (Add / Edit) ---------- */
+.sp-modal-overlay {
+  position:fixed; inset:0;
+  background: rgba(15,20,30,0.35);  /* slightly darker but solid */
+  display:flex; align-items:center; justify-content:center; z-index:9999;
+  padding:20px;
+}
+.sp-modal {
+  width:900px; max-width:100%;
+  background:var(--sp-card);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow: 0 30px 60px rgba(16,24,40,0.18);
+}
+.sp-modal-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 20px; border-bottom:1px solid var(--sp-border);
+}
+.sp-modal-header h3 { margin:0; color:var(--sp-strong); font-size:1.05rem; }
+.sp-modal-body { padding:18px 20px; max-height:60vh; overflow:auto; }
+.sp-modal-footer { padding:14px 20px; border-top:1px solid var(--sp-border); display:flex; justify-content:flex-end; gap:12px; }
+
+/* ---------- Form fields ---------- */
+.sp-row { display:flex; gap:12px; margin-bottom:12px; }
+.sp-field { flex:1; }
+.sp-field-label { display:block; margin-bottom:6px; color:var(--sp-muted); font-weight:700; font-size:0.9rem; }
+.sp-field input, .sp-field textarea, .sp-field select {
+  width:100%;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid var(--sp-border);
+  box-sizing:border-box;
+  color:var(--sp-text);
+  background:var(--sp-card);
+  font-size:0.95rem;
+}
+.sp-field textarea { min-height:90px; resize:vertical; }
+
+/* input focus */
+.sp-field input:focus, .sp-field textarea:focus, .sp-field select:focus {
+  outline: 3px solid rgba(79,70,229,0.12);  /* visible solid focus */
+  outline-offset: 2px;
+  border-color: var(--sp-purple);
+}
+
+/* ---------- Utility / small screens ---------- */
+@media (max-width: 980px) {
+  .sp-row { flex-direction:column; }
+  .sp-table { min-width:760px; }
+  .sp-actions-col { width:140px; }
+}
+@media (max-width: 640px) {
+  .sp-header { flex-direction:column; align-items:flex-start; gap:12px; }
+  .sp-table { min-width:520px; }
+  .sp-actions-col { text-align:left; }
+}
+
+/* ---------- Accessibility helpers ---------- */
+button:focus, a:focus, input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 4px rgba(79,70,229,0.08);
+  border-radius: 8px;
+}
+
+/* ---------- Minor tweaks ---------- */
+/* Make sure icons align nicely with text */
+.sp-table .icon { vertical-align: middle; }

@@ -21,7 +21,7 @@ function StatCard({ title, value, subValue, icon, color }) {
 // --- Sale Detail Modal used by Sales ---
 function SaleDetailModal({ isOpen, onClose, sale }) {
   if (!isOpen || !sale) return null;
-  const fmt = (amt) => `₨${(Number(amt) || 0).toFixed(2)}`;
+  const fmt = (amt) => `₨ ${(Number(amt) || 0).toFixed(2)}`;
   return (
     <div className="bill-modal-overlay" onClick={onClose}>
       <div className="bill-modal-content sale-detail-modal" onClick={(e) => e.stopPropagation()}>
@@ -151,7 +151,7 @@ export default function Sales() {
       <div className="sales-stat-grid">
         <StatCard title="Today's Bills" value={todayBillsCount} subValue="transactions" color="#8b5cf6" />
         {/* show revenue only to admins */}
-        {isAdmin && <StatCard title="Today's Revenue" value={`₨${todayRevenue.toFixed(2)}`} subValue="total revenue" color="#10b981" />}
+        {isAdmin && <StatCard title="Today's Revenue" value={`₨ ${todayRevenue.toFixed(2)}`} subValue="total revenue" color="#10b981" />}
       </div>
 
       <div className="card sales-history-card">
@@ -192,7 +192,7 @@ export default function Sales() {
                     </div>
 
                     <div className="sale-actions">
-                      <div className="sale-amount">{(isStaff && !isAdmin) ? '—' : `₨${(Number(s.totalAmount || 0)).toFixed(2)}`}</div>
+                      <div className="sale-amount">{(isStaff && !isAdmin) ? '—' : `₨ ${(Number(s.totalAmount || 0)).toFixed(2)}`}</div>
 
                       {isAdmin && (
                         <button

@@ -1,0 +1,205 @@
+/* customers.css - Prefixed with cu- */
+:root {
+  --cu-bg: #f8f9fc; /* Consistent light background */
+  --cu-card: #ffffff;
+  --cu-text-primary: #1f2937; /* Consistent primary text */
+  --cu-text-secondary: #4b5563; /* Consistent secondary text */
+  --cu-text-muted: #6b7280; /* Consistent muted text */
+  --cu-border-color: #e5e7eb; /* Consistent border */
+  --cu-row-hover-bg: #f3f4f6; /* Consistent row hover */
+  --cu-blue: #6366f1;
+  --cu-orange: #f59e0b; /* Adjusted orange */
+  --cu-red: #ef4444;
+  --cu-green: #10b981; /* Added green for consistency */
+  --cu-radius: 10px; /* Consistent radius */
+  --cu-shadow: 0 4px 12px rgba(0, 0, 0, 0.04); /* Consistent shadow */
+  --cu-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.06);
+  --cu-transition-fast: 0.15s ease-in-out;
+  --cu-transition-std: 0.2s ease-in-out;
+}
+
+/* Page Base */
+.cu-page {
+  padding: 2rem; /* Increased padding */
+  background: var(--cu-bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--cu-text-secondary); /* Default secondary */
+}
+
+/* Header */
+.cu-header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+.cu-header h2 { margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--cu-text-primary); }
+.cu-sub { margin: 0; color: var(--cu-text-muted); font-size: 0.95rem; margin-top: 0.25rem; }
+
+/* Top actions (Buttons) */
+.cu-actions { display: flex; gap: 0.75rem; align-items: center; }
+/* Use general button styles defined below */
+
+/* General Button Styles (Can share with other pages) */
+.cu-btn { /* Renamed from btn-primary/btn-muted for consistency */
+  padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  font-weight: 600; font-size: 0.875rem; display: inline-flex; gap: 0.5rem;
+  align-items: center; justify-content: center; transition: all var(--cu-transition-std);
+  white-space: nowrap; line-height: 1.2;
+}
+.cu-btn:active { transform: scale(0.98); }
+.cu-btn-primary { background: var(--cu-blue); color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.cu-btn-primary:hover { background: #4f46e5; box-shadow: 0 4px 8px rgba(99, 102, 241, 0.2); }
+.cu-btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; box-shadow: none; }
+.cu-btn-secondary { background: var(--cu-card); border-color: var(--cu-border-color); color: var(--cu-text-secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.cu-btn-secondary:hover { border-color: #d1d5db; background: #f9fafb; }
+
+
+/* Stats */
+.cu-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0; }
+.cu-stat-card {
+  background: var(--cu-card); padding: 1.25rem; border-radius: var(--cu-radius);
+  border-left: 5px solid var(--cu-border-color); box-shadow: var(--cu-shadow);
+  transition: all var(--cu-transition-std);
+}
+.cu-stat-card:hover { transform: translateY(-4px); box-shadow: var(--cu-shadow-hover); }
+/* Colored borders */
+.cu-stat-card.c-blue { border-left-color: var(--cu-blue); }
+.cu-stat-card.c-orange { border-left-color: var(--cu-orange); }
+.cu-stat-card.c-red { border-left-color: var(--cu-red); }
+.cu-stat-title { color: var(--cu-text-muted); font-size: 0.9rem; font-weight: 500;}
+.cu-stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; color: var(--cu-text-primary); }
+
+/* Search */
+.cu-search-row { margin-bottom: 1.5rem; display: flex; }
+.cu-search {
+  position: relative; /* For icon */
+  background: var(--cu-card); border-radius: 10px; border: 1px solid var(--cu-border-color);
+  display: flex; align-items: center; width: 100%; max-width: 600px; /* Limit width */
+  transition: border-color var(--cu-transition-fast), box-shadow var(--cu-transition-fast);
+}
+.cu-search-icon { /* Added class for icon */
+  position: absolute; left: 1rem; color: var(--cu-text-muted); pointer-events: none;
+}
+.cu-search input {
+  border: none; outline: none; background: transparent; font-size: 0.95rem; width: 100%;
+  padding: 0.7rem 1rem 0.7rem 3rem; /* Padding for icon */
+  color: var(--cu-text-primary);
+}
+.cu-search input::placeholder { color: var(--cu-text-muted); opacity: 0.8; }
+.cu-search:focus-within {
+  border-color: var(--cu-blue); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* Table card */
+.cu-table-card { /* Renamed from .cu-table.card */
+  padding: 0; /* Remove padding, header/body handle it */
+  border-radius: var(--cu-radius); margin-top: 1rem; border: 1px solid var(--cu-border-color);
+  background: var(--cu-card); box-shadow: var(--cu-shadow); overflow: hidden; /* Important */
+}
+.cu-table-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--cu-border-color); background-color: #fafbfe; }
+.cu-table-title { font-weight: 600; display: flex; gap: 0.6rem; align-items: center; color: var(--cu-text-primary); font-size: 1rem; }
+/* Add styles for potential pagination/filter controls in header */
+
+/* Table */
+.cu-table-wrap { overflow-x: auto; }
+.cu-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.cu-table thead th {
+  text-align: left; padding: 0.8rem 1rem; color: var(--cu-text-muted);
+  font-weight: 600; border-bottom: 1px solid var(--cu-border-color);
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em;
+  background-color: var(--cu-bg); /* Match page bg */
+  position: sticky; top: 0; z-index: 1;
+}
+.cu-table tbody td {
+  padding: 0.9rem 1rem; border-bottom: 1px solid #f3f6f9; /* Lighter */
+  color: var(--cu-text-secondary); vertical-align: middle; font-size: 0.9rem;
+}
+.cu-table tbody tr:last-child td { border-bottom: none; }
+.cu-table tbody tr:hover { background-color: var(--cu-row-hover-bg); }
+
+.cu-name { font-weight: 500; color: var(--cu-text-primary); } /* Slightly less bold */
+.cu-outstanding { font-weight: 600; color: var(--cu-text-primary); }
+.cu-out-red { color: var(--cu-red); font-weight: 600; }
+
+/* Status Badges */
+.cu-status { padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: capitalize; border: 1px solid transparent; display: inline-block; white-space: nowrap; }
+.cu-status.warn { background: #fef2f2; color: var(--cu-red); border-color: #fecaca; } /* Brighter red */
+.cu-status.clear { background: #ecfdf5; color: var(--cu-green); border-color: #d1fae5; } /* Consistent green */
+/* Add more status styles if needed */
+
+.cu-actions-col { text-align: right; width: 120px; /* Reduced width */}
+
+/* Action Icons (using shared icon-btn style) */
+.icon-btn {
+  background: transparent; border: none; padding: 6px; display: inline-grid;
+  place-items: center; cursor: pointer; border-radius: 50%; /* Circular */
+  color: var(--cu-text-muted); transition: all var(--cu-transition-fast); line-height: 1;
+}
+.icon-btn:hover { background: var(--cu-row-hover-bg); color: var(--cu-text-primary); }
+.icon-btn.danger { color: var(--cu-red); }
+.icon-btn.danger:hover { background: #fee2e2; color: var(--cu-red); }
+
+/* Empty Table State */
+.cu-empty { text-align: center; padding: 3rem 1rem; color: var(--cu-text-muted); font-size: 0.95rem; font-weight: 500; }
+
+/* Modal Styles */
+.cu-modal-overlay { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.6); display: flex; align-items: flex-start; /* Align top */ justify-content: center; z-index: 2000; padding: 5vh 1rem; backdrop-filter: blur(4px); opacity: 0; animation: cuModalFadeIn 0.3s forwards; }
+@keyframes cuModalFadeIn { to { opacity: 1; } }
+
+.cu-modal {
+  width: 600px; /* Adjusted width */
+  max-width: 100%; background: var(--cu-card); border-radius: var(--cu-radius);
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+  overflow: hidden; display: flex; flex-direction: column; max-height: 90vh;
+  transform: translateY(-20px); animation: cuModalSlideUp 0.3s 0.1s forwards;
+}
+@keyframes cuModalSlideUp { to { transform: translateY(0); } }
+
+.cu-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--cu-border-color); flex-shrink: 0; }
+.cu-modal-header h3 { font-size: 1.15rem; font-weight: 600; color: var(--cu-text-primary); margin: 0; }
+.cu-close { background: none; border: none; font-size: 1.5rem; /* Bigger X */ cursor: pointer; color: var(--cu-text-muted); line-height: 1; padding: 0.25rem; border-radius: 50%; transition: all var(--cu-transition-fast); }
+.cu-close:hover { background: var(--cu-bg); color: var(--cu-text-primary); }
+
+.cu-modal-body { padding: 1.5rem 1.25rem; overflow-y: auto; flex-grow: 1; /* Scroll body */}
+.cu-modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--cu-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--cu-bg); flex-shrink: 0; }
+
+/* Modal Form Fields */
+.cu-field { display: block; margin-bottom: 1rem; }
+.cu-field-label { margin-bottom: 0.4rem; color: var(--cu-text-secondary); font-size: 0.8rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; display: block; }
+.cu-field input, .cu-field textarea, .cu-field select {
+  width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px;
+  border: 1px solid var(--cu-border-color); font-size: 0.95rem; background: var(--cu-card);
+  color: var(--cu-text-primary); box-sizing: border-box;
+  transition: border-color var(--cu-transition-fast), box-shadow var(--cu-transition-fast);
+}
+.cu-field input::placeholder { color: var(--cu-text-muted); opacity: 0.8; }
+.cu-field input:focus, .cu-field textarea:focus, .cu-field select:focus {
+  outline: none; border-color: var(--cu-blue);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.cu-row { display: flex; gap: 1rem; }
+.cu-row .cu-field { flex: 1; }
+
+/* Amount input style */
+.cu-amount-row { display: flex; align-items: center; gap: 0.5rem; }
+/* Assuming the input takes full width via .cu-field */
+.cu-currency { /* Style as needed, maybe remove if not visually distinct */ }
+
+/* buttons reuse .cu-btn styles */
+
+/* responsive */
+@media (max-width: 980px) {
+  .cu-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .cu-row { flex-direction: column; gap: 0; } /* Stack modal fields */
+  .cu-row .cu-field { margin-bottom: 1rem; }
+  .cu-table { min-width: 760px; }
+  .cu-modal { width: 94%; }
+}
+@media (max-width: 640px) {
+  .cu-page { padding: 1rem; }
+  .cu-stats-row { grid-template-columns: 1fr; }
+  .cu-table { min-width: 640px; }
+  .cu-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+}

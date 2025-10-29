@@ -10,6 +10,12 @@ import { Layout } from './components/Layout';
 import LoginPage from './pages/login';
 import Dashboard from './pages/dashboard';
 import Sales from './pages/sales';
+import ProductsPage from './pages/product';
+import CustomersPage from './pages/customers';
+import InquiriesPage from './pages/inquiries';
+import Suppliers from './pages/suppliers';
+import PurchaseOrders from './pages/purchaseorders';
+import Expenses from './pages/expenses';
 // ... import your other pages here as you build them ...
 
 /**
@@ -60,6 +66,12 @@ export default function App() {
               <Route index element={<Dashboard />} /> 
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/sales" element={<Sales />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/inquiries" element={<InquiriesPage />} />
+              <Route path="/suppliers" element={<Suppliers />} />
+              <Route path="/purchase-orders" element={<PurchaseOrders />} />
+              <Route path="/expenses" element={<Expenses />} />
               {/* When you're ready, add your other pages:
                 <Route path="/sales" element={<SalesPage />} />
                 <Route path="/products" element={<ProductsPage />} />

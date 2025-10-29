@@ -1,0 +1,138 @@
+/* src/styles/purchaseorders.css - Prefixed with po- */
+:root {
+  /* Consistent Theme Variables */
+  --po-bg: #f8f9fc;
+  --po-card: #ffffff;
+  --po-text-primary: #1f2937;
+  --po-text-secondary: #4b5563;
+  --po-text-muted: #6b7280;
+  --po-border-color: #e5e7eb;
+  --po-row-hover-bg: #f3f4f6;
+  --po-blue: #6366f1; /* Main button color */
+  --po-blue-dark: #4f46e5;
+  --po-radius: 10px;
+  --po-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  --po-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.06);
+  --po-transition-fast: 0.15s ease-in-out;
+  --po-transition-std: 0.2s ease-in-out;
+}
+
+/* Page Base */
+.po-page {
+  padding: 2rem;
+  background: var(--po-bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--po-text-secondary);
+}
+
+/* Base Card Style (Apply if not global) */
+.card {
+  background-color: var(--po-card);
+  border-radius: var(--po-radius);
+  box-shadow: var(--po-shadow);
+  border: 1px solid var(--po-border-color);
+  transition: all var(--po-transition-std);
+}
+.card:hover {
+  /* Optional hover effect for cards */
+  /* transform: translateY(-4px); */
+  /* box-shadow: var(--po-shadow-hover); */
+}
+
+/* Header */
+.po-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+}
+.po-header h2 { margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--po-text-primary); }
+.po-sub { margin: 0; color: var(--po-text-muted); font-size: 0.95rem; margin-top: 0.25rem; }
+
+/* General Button Styles */
+.po-btn {
+  padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  font-weight: 600; font-size: 0.875rem; display: inline-flex; gap: 0.5rem;
+  align-items: center; justify-content: center; transition: all var(--po-transition-std);
+  white-space: nowrap; line-height: 1.2;
+}
+.po-btn:active { transform: scale(0.98); }
+.po-btn:focus-visible { outline: 3px solid rgba(99, 102, 241, 0.15); outline-offset: 2px; }
+
+.po-btn-primary { background: var(--po-blue); color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.po-btn-primary:hover { background: var(--po-blue-dark); box-shadow: 0 4px 8px rgba(99, 102, 241, 0.2); transform: translateY(-1px); }
+.po-btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; box-shadow: none; transform: none;}
+
+.po-btn-secondary { background: var(--po-card); border-color: var(--po-border-color); color: var(--po-text-secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.po-btn-secondary:hover { border-color: #d1d5db; background: #f9fafb; }
+
+
+/* PO List Card */
+.po-list-card {
+  padding: 0; /* Header and content handle padding */
+  margin-top: 1rem;
+  overflow: hidden; /* Ensure radius contains children */
+}
+.po-list-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--po-border-color);
+  color: var(--po-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background-color: #fafbff; /* Subtle header background */
+}
+.po-list-title {
+  font-weight: 600;
+  color: var(--po-text-primary);
+  font-size: 1rem;
+}
+
+.po-card-content {
+  /* Padding applied by children (empty state or table wrapper) */
+}
+
+/* Empty State */
+.po-empty {
+  padding: 3rem 1rem; /* More vertical padding */
+  text-align: center;
+  color: var(--po-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* Space between elements */
+  align-items: center;
+  min-height: 300px; /* Ensure card has some height */
+  justify-content: center;
+}
+.po-empty-icon {
+  color: #cbd5e1; /* Lighter icon */
+}
+.po-empty p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 0.5rem; /* Space above text */
+  margin-bottom: 1rem; /* Space below text */
+}
+/* Center the button */
+.po-empty .po-btn {
+  margin-top: 0.5rem;
+}
+
+/* Styles for Populated List (Placeholder) */
+.po-list-table-wrapper {
+  overflow-x: auto;
+  padding: 1.5rem; /* Add padding when table is present */
+}
+/* Add .po-table styles here when ready */
+/* .po-table { width: 100%; ... } */
+/* .po-table thead th { ... } */
+/* .po-table tbody td { ... } */
+
+
+/* Responsive */
+@media (max-width: 640px) {
+  .po-page { padding: 1rem; }
+  .po-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .po-header .po-btn { width: 100%; justify-content: center; } /* Full width button */
+}

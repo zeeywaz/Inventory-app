@@ -12,7 +12,7 @@ import { X } from 'lucide-react';
 // small Sale Detail modal (reused UI)
 function SaleDetailModal({ isOpen, onClose, sale }) {
   if (!isOpen || !sale) return null;
-  const fmt = (amt) => `₨${(Number(amt) || 0).toFixed(2)}`;
+  const fmt = (amt) => `₨ ${(Number(amt) || 0).toFixed(2)}`;
   return (
     <div className="bill-modal-overlay" onClick={onClose}>
       <div className="bill-modal-content sale-detail-modal" onClick={(e) => e.stopPropagation()}>
@@ -103,12 +103,12 @@ export default function Dashboard() {
           <>
             <div>
               <div className="card stat-card" style={{ ['--card-color']: '#10b981' }}>
-                <div className="stat-card-info"><span className="stat-title">Today's Profit</span><span className="stat-value">₨0.00</span><span className="stat-subvalue">$0.00 - $0.00</span></div>
+                <div className="stat-card-info"><span className="stat-title">Today's Profit</span><span className="stat-value">₨ 0.00</span><span className="stat-subvalue">$ 0.00 - $ 0.00</span></div>
               </div>
             </div>
             <div>
               <div className="card stat-card" style={{ ['--card-color']: '#f59e0b' }}>
-                <div className="stat-card-info"><span className="stat-title">Outstanding Credit</span><span className="stat-value">₨0.00</span><span className="stat-subvalue">0 customers</span></div>
+                <div className="stat-card-info"><span className="stat-title">Outstanding Credit</span><span className="stat-value">₨ 0.00</span><span className="stat-subvalue">0 customers</span></div>
               </div>
             </div>
           </>
@@ -163,7 +163,7 @@ export default function Dashboard() {
                           <span className="sale-customer">{sale.customerName ?? 'Walk-in'}</span>
                           <span className="sale-date">{new Date(sale.date).toLocaleDateString()}</span>
                         </div>
-                        <span className="sale-total">{(isStaff && !isAdmin) ? '—' : `₨${total.toFixed(2)}`}</span>
+                        <span className="sale-total">{(isStaff && !isAdmin) ? '—' : `₨ ${total.toFixed(2)}`}</span>
                       </li>
                     );
                   })}
@@ -187,13 +187,13 @@ export default function Dashboard() {
                 <div className="summary-item">
                   <div className="summary-icon-wrapper" style={{ backgroundColor: '#dbeafe' }}><BarChart size={18} /></div>
                   <div className="summary-text"><span className="summary-title">Weekly Revenue</span><span className="summary-subtitle">0 sales</span></div>
-                  <span className="summary-value">₨0.00</span>
+                  <span className="summary-value">₨ 0.00</span>
                 </div>
 
                 <div className="summary-item">
                   <div className="summary-icon-wrapper" style={{ backgroundColor: '#ede9fe' }}><Briefcase size={18} /></div>
                   <div className="summary-text"><span className="summary-title">Inventory Value</span><span className="summary-subtitle">{allStocked} products</span></div>
-                  <span className="summary-value">₨{inventoryValue.toFixed(2)}</span>
+                  <span className="summary-value">₨ {inventoryValue.toFixed(2)}</span>
                 </div>
 
                 <div className="summary-item">
@@ -205,7 +205,7 @@ export default function Dashboard() {
                 <div className="summary-item">
                   <div className="summary-icon-wrapper" style={{ backgroundColor: '#dcfce7' }}><Wallet size={18} /></div>
                   <div className="summary-text"><span className="summary-title">Monthly Revenue</span><span className="summary-subtitle">0 sales</span></div>
-                  <span className="summary-value">₨0.00</span>
+                  <span className="summary-value">₨ 0.00</span>
                 </div>
               </div>
             </div>
