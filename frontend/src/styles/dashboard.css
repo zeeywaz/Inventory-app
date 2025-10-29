@@ -1,52 +1,86 @@
-/* --- Global Dashboard Styles --- */
+/* dashboard.css — matches src/pages/dashboard.jsx */
+
+/* ---------- Design tokens (unique prefix: --dash-) ---------- */
+:root{
+  --dash-bg: #f9fafb;
+  --dash-page-pad: 24px;
+  --dash-font-stack: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --dash-text: #374151;
+
+  --dash-card-bg: #ffffff;
+  --dash-card-radius: 12px;
+  --dash-card-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  --dash-card-border: #f3f4f6;
+  --dash-card-hover-shadow: 0 8px 16px rgba(0,0,0,0.06);
+  --dash-transition: 0.18s;
+
+  --dash-title-size: 1.1rem;
+  --dash-title-color: #1f2937;
+  --dash-card-pad: 24px;
+  --dash-card-pad-bottom: 20px;
+
+  --dash-header-gap: 16px;
+  --dash-header-h1-size: 1.8rem;
+  --dash-header-h1-weight: 700;
+  --dash-header-title-color: #111827;
+  --dash-header-sub-size: 0.95rem;
+  --dash-header-sub-color: #6b7280;
+
+  --dash-stat-grid-gap: 24px;
+  --dash-stat-muted: #6b7280;
+  --dash-stat-value-size: 1.75rem;
+  --dash-stat-value-color: #111827;
+  --dash-stat-icon-size: 40px;
+
+  /* left accent defaults (can be overridden by inline --card-color) */
+  --dash-accent-left-width: 6px;                 /* thin stripe */
+  --dash-accent-left-color: #3b82f6;             /* fallback color */
+  --dash-accent-left-hover-inset: 2px;
+
+  --dash-main-grid-gap: 24px;
+  --dash-chart-height: 300px;
+  --dash-sales-max-height: 300px;
+  --dash-sale-border: #f3f4f6;
+  --dash-sale-hover-bg: #fafafa;
+
+  --dash-summary-gap: 16px;
+  --dash-summary-item-pad: 12px;
+  --dash-summary-item-radius: 8px;
+
+  --dash-modal-overlay-bg: rgba(2,6,23,0.5);
+  --dash-modal-width: 920px;
+  --dash-modal-max-width: 96%;
+  --dash-modal-shadow: 0 20px 50px rgba(2,6,23,0.25);
+}
+
+/* ---------- Page layout ---------- */
 .dashboard {
-  background-color: #f9fafb; /* Light gray background */
-  padding: 24px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
-  color: #374151;
-  width: 100%; /* Ensures dashboard takes full width of its container */
-  min-height: 100vh; /* Ensures it takes full height */
-  box-sizing: border-box; /* Include padding in width calculation */
+  background-color: var(--dash-bg);
+  padding: var(--dash-page-pad);
+  font-family: var(--dash-font-stack);
+  color: var(--dash-text);
+  width: 100%;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
-/* --- Card Base Style --- */
+/* ---------- Card base ---------- */
 .card {
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  border: 1px solid #f3f4f6;
-  transition: all 0.2s ease-in-out;
+  background: var(--dash-card-bg);
+  border-radius: var(--dash-card-radius);
+  box-shadow: var(--dash-card-shadow);
+  border: 1px solid var(--dash-card-border);
+  transition: transform var(--dash-transition) ease, box-shadow var(--dash-transition) ease;
+  overflow: hidden;
 }
+.card:hover { transform: translateY(-4px); box-shadow: var(--dash-card-hover-shadow); }
 
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
-}
-
-.card-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-  padding: 24px;
-  padding-bottom: 20px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px;
-  padding-bottom: 20px;
-}
-
-.card-header .card-title {
-  padding: 0;
-}
+.card-title { font-size: var(--dash-title-size); font-weight: 600; color: var(--dash-title-color); margin: 0; padding: var(--dash-card-pad); padding-bottom: var(--dash-card-pad-bottom); }
+.card-header { display:flex; justify-content:space-between; align-items:center; padding: var(--dash-card-pad); padding-bottom: var(--dash-card-pad-bottom); }
+.card-header .card-title { padding: 0; }
 
 .count-badge {
-  background-color: #eef2ff;
+  background: #eef2ff;
   color: #4f46e5;
   font-size: 0.8rem;
   font-weight: 500;
@@ -54,374 +88,166 @@
   border-radius: 99px;
 }
 
-.card-content {
-  padding: 0 24px 24px 24px;
-}
-
-/* --- Dashboard Header --- */
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap; /* Allow wrapping on small screens */
-  gap: 16px;
-}
-
-.header-title h1 {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-}
-
-.header-title p {
-  font-size: 0.95rem;
-  color: #6b7280;
-  margin-top: 4px;
-}
-
+/* ---------- Header ---------- */
+.dashboard-header { display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--dash-main-grid-gap); gap: var(--dash-header-gap); flex-wrap:wrap; }
+.header-title h1 { font-size: var(--dash-header-h1-size); font-weight: var(--dash-header-h1-weight); color: var(--dash-header-title-color); margin:0; }
+.header-title p { margin:4px 0 0; font-size: var(--dash-header-sub-size); color: var(--dash-header-sub-color); }
 .header-last-updated {
-  font-size: 0.8rem;
-  font-weight: 500;
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  padding: 6px 10px;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  flex-shrink: 0; /* Prevents shrinking */
+  font-size: 0.8rem; font-weight:500;
+  background: #fff; border: 1px solid #e5e7eb; padding:6px 10px; border-radius:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-/* --- Stat Cards Grid --- */
-.stat-card-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-}
+/* ---------- Stat cards grid ---------- */
+.stat-card-grid { display:grid; grid-template-columns: repeat(4,1fr); gap: var(--dash-stat-grid-gap); }
 
+/* .card.stat-card is used in your JSX — use both selectors for safety */
+.card.stat-card,
 .stat-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 20px;
-  border-left: 5px solid var(--card-color, #e5e7eb);
+  position: relative;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  padding: 18px;
+  padding-left: calc(var(--dash-accent-left-width) + 12px);
+  min-height: 84px;
+  border: none;
+  background: var(--dash-card-bg);
 }
 
-.stat-card:hover {
-  transform: translateY(-4px); /* Keep hover effect from base card */
-  border-left-width: 8px; /* Make border thicker on hover */
+/* LEFT SOLID ACCENT: uses inline --card-color if provided; falls back to --dash-accent-left-color */
+.stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--dash-accent-left-width);
+  background: var(--card-color, var(--dash-accent-left-color));
+  border-top-left-radius: var(--dash-card-radius);
+  border-bottom-left-radius: var(--dash-card-radius);
+  z-index: 0;
+  transition: width var(--dash-transition) ease, background 0.12s ease;
+}
+.stat-card:hover::before {
+  width: calc(var(--dash-accent-left-width) + var(--dash-accent-left-hover-inset));
 }
 
-.stat-card-info {
-  display: flex;
-  flex-direction: column;
-}
+/* Ensure card content sits above stripe */
+.stat-card > * { position: relative; z-index: 1; }
 
-.stat-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #6b7280;
-}
+/* Per-card helpers (optional) */
+.stat-card--blue   { --card-color: #3b82f6; }
+.stat-card--purple { --card-color: #8b5cf6; }
+.stat-card--green  { --card-color: #10b981; }
+.stat-card--red    { --card-color: #ef4444; }
+.stat-card--amber  { --card-color: #f59e0b; }
 
-.stat-value {
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: #111827;
-  margin-top: 8px;
-}
+/* stat-card content */
+.stat-card-info { display:flex; flex-direction:column; gap:4px; }
+.stat-title { font-size: 0.9rem; font-weight:500; color: var(--dash-stat-muted); }
+.stat-value { font-size: var(--dash-stat-value-size); font-weight:600; color: var(--dash-stat-value-color); margin-top: 6px; }
+.stat-subvalue { font-size: 0.8rem; color: var(--dash-stat-muted); margin-top: 4px; display:flex; gap:4px; align-items:center; }
 
-.stat-subvalue {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
+/* stat icon: use same card-color for visual harmony, safe fallback to accent */
 .stat-icon {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background-color: var(--card-color, #e5e7eb);
-  color: #ffffff !important;
-  opacity: 0.2;
+  width: var(--dash-stat-icon-size); height: var(--dash-stat-icon-size);
+  display:grid; place-items:center; border-radius:8px;
+  background: var(--card-color, rgba(59,130,246,0.12)); /* if no color, subtle blue */
+  color: #fff !important;
+  opacity: 0.95;
 }
 
-/* --- Main Dashboard Grid --- */
-.dashboard-main-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-  margin-top: 24px;
-}
+/* ---------- Main grid & charts ---------- */
+.dashboard-main-grid { display:grid; grid-template-columns: 2fr 1fr; gap: var(--dash-main-grid-gap); margin-top:24px; }
+.main-col-left, .main-col-right { display:flex; flex-direction:column; gap:24px; }
+.chart-container { width:100%; height: var(--dash-chart-height); padding: 0 12px 12px 0; }
 
-.main-col-left {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  min-width: 0; /* Prevents chart overflow */
-}
-
-.main-col-right {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* --- Sales Trend Chart --- */
-.chart-container {
-  width: 100%;
-  height: 300px;
-  padding: 0 12px 12px 0;
-}
-
-/* --- Recent Sales Card --- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: #9ca3af;
-}
-
-.empty-icon {
-  color: #d1d5db;
-  margin-bottom: 16px;
-}
-
-.empty-state p {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.sales-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 300px;
-  overflow-y: auto;
-}
+/* ---------- Recent sales list ---------- */
+.recent-sales-card .card-header, .recent-sales-card .card-title { padding: var(--dash-card-pad); padding-bottom: var(--dash-card-pad-bottom); }
+.sales-list { list-style:none; margin:0; padding:0; max-height: var(--dash-sales-max-height); overflow-y:auto; }
 .sales-list-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f3f4f6;
-  transition: background-color 0.2s ease;
-}
-.sales-list-item:hover {
-  background-color: #fafafa;
-}
-.sales-list-item:last-child {
-  border-bottom: none;
-}
-.sale-info {
-  display: flex;
-  flex-direction: column;
-}
-.sale-customer {
-  font-weight: 500;
-  color: #374151;
-}
-.sale-date {
-  font-size: 0.85rem;
-  color: #6b7280;
-}
-.sale-total {
-  font-weight: 600;
-  color: #10b981;
-}
-
-/* --- Payment Methods Card --- */
-.empty-state-small {
-  padding: 0 24px 24px 24px;
-  color: #9ca3af;
-  font-size: 0.9rem;
-}
-
-/* --- Business Summary Card --- */
-.business-summary-card .card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px; /* Increased gap between items */
-}
-
-.summary-item {
-  display: flex;
-  align-items: center;
-  /* Removed gap here, will use justify-content */
-  justify-content: space-between; /* Pushes icon/text away from value */
-  border-radius: 8px;
-  padding: 12px;
-  transition: background-color 0.2s ease;
-}
-.summary-item:hover {
-  background-color: #f8f8f8;
-}
-
-/* Group icon and text together */
-.summary-item-left {
-    display: flex;
-    align-items: center;
-    gap: 16px; /* Gap between icon and text */
-}
-
-.summary-icon-wrapper {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: #374151;
-}
-
-/* Keep icon colors */
-.summary-icon-wrapper[style*='#dbeafe'] { color: #3b82f6; }
-.summary-icon-wrapper[style*='#ede9fe'] { color: #8b5cf6; }
-.summary-icon-wrapper[style*='#fee2e2'] { color: #ef4444; }
-.summary-icon-wrapper[style*='#dcfce7'] { color: #22c55e; }
-
-.summary-text {
-  /* Removed flex-grow: 1 */
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.3;
-}
-.summary-title {
-  font-weight: 500;
-  color: #374151;
-  font-size: 0.9rem;
-}
-.summary-subtitle {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-.summary-value {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1f2937;
-  white-space: nowrap;
-  /* Removed margin-left: auto */
-  /* Removed padding-left */
-}
-
-/* --- RESPONSIVE MEDIA QUERIES --- */
-
-/* For small laptops / large tablets */
-@media (max-width: 1024px) {
-  .stat-card-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .dashboard-main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* For tablets and mobile phones */
-@media (max-width: 768px) {
-  .dashboard {
-    padding: 16px;
-  }
-  
-  .dashboard-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .stat-card-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .card-title {
-    padding: 20px;
-    padding-bottom: 16px;
-  }
-  .card-header {
-    padding: 20px;
-    padding-bottom: 16px;
-  }
-  .card-content {
-    padding: 0 20px 20px 20px;
-  }
-  .empty-state-small {
-    padding: 0 20px 20px 20px;
-  }
-  
-  /* Adjust summary item spacing on mobile */
-  .summary-item {
-    gap: 12px;
-    padding: 10px;
-  }
-  .summary-item-left {
-      gap: 12px; /* Smaller gap on mobile */
-  }
-  .summary-value {
-     /* padding-left: 12px; Still removed */
-     font-size: 0.95rem; /* Slightly smaller value text */
-  }
-}
-
-/* clickable sales row */
-.sale-row,
-.sales-list-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 12px 0; border-bottom: 1px solid var(--dash-sale-border); transition: background-color var(--dash-transition) ease;
   cursor: pointer;
-  outline: none;
 }
-.sale-row:focus,
-.sales-list-item:focus {
+.sales-list-item:hover { background: var(--dash-sale-hover-bg); }
+.sales-list-item:last-child { border-bottom: none; }
+.sale-info { display:flex; flex-direction:column; }
+.sale-customer { font-weight:500; color: var(--dash-text); }
+.sale-date { font-size:0.85rem; color: var(--dash-header-sub-color); }
+.sale-total { font-weight:600; color: #10b981; }
+
+/* keyboard focus */
+.sales-list-item:focus,
+.sales-list-item:active,
+.sales-list-item[aria-pressed="true"] {
+  outline: none;
   box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
   border-radius: 8px;
 }
-.sale-row:hover,
-.sales-list-item:hover {
-  background-color: #fbfdff;
+
+/* ---------- Empty state ---------- */
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; color:#9ca3af; }
+.empty-icon { color:#d1d5db; margin-bottom:16px; }
+.empty-state p { font-size:0.9rem; font-weight:500; }
+
+/* ---------- Business summary ---------- */
+.business-summary-card .card-content { padding: var(--dash-card-pad) !important; display:flex; flex-direction:column; gap: var(--dash-summary-gap); }
+.summary-item { display:flex; align-items:center; justify-content:space-between; gap:12px; border-radius: var(--dash-summary-item-radius); padding: var(--dash-summary-item-pad); transition: background var(--dash-transition) ease; }
+.summary-item:hover { background:#f8f8f8; }
+.summary-item-left { display:flex; align-items:center; gap:12px; }
+.summary-icon-wrapper { width:40px; height:40px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; color:var(--dash-text); }
+.summary-text { display:flex; flex-direction:column; gap:2px; line-height:1.3; }
+.summary-title { font-weight:500; color:var(--dash-text); font-size:0.9rem; }
+.summary-subtitle { font-size:0.8rem; color:var(--dash-header-sub-color); }
+.summary-value { font-size:1rem; font-weight:600; color:var(--dash-title-color); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:8px; border:none; cursor:pointer;
+  font-weight:600; background:#111827; color:#fff;
+}
+.btn:active { transform: translateY(1px); }
+.btn-secondary {
+  background: transparent; color: #111827; border: 1px solid rgba(17,24,39,0.06);
 }
 
-/* modal detail small adjustments (use same classes used in sales) */
+/* ---------- Modal (SaleDetailModal) ---------- */
 .bill-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(2,6,23,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1200;
-  padding: 20px;
+  position: fixed; inset: 0; background: var(--dash-modal-overlay-bg);
+  display:flex; align-items:center; justify-content:center; z-index:1200; padding:20px;
 }
 .bill-modal-content {
-  width: 920px;
-  max-width: 96%;
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 20px 50px rgba(2,6,23,0.25);
-  display: flex;
-  flex-direction: column;
+  width: var(--dash-modal-width); max-width: var(--dash-modal-max-width);
+  background: var(--dash-card-bg); border-radius: var(--dash-card-radius);
+  overflow:hidden; box-shadow: var(--dash-modal-shadow); display:flex; flex-direction:column;
 }
-.bill-modal-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #eef2f7;
+.bill-modal-header { display:flex; justify-content:space-between; align-items:center; padding: 16px 20px; border-bottom:1px solid #eef2f7; }
+.bill-modal-close { background:transparent; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:6px; border-radius:6px; }
+.bill-modal-close:hover { background: rgba(0,0,0,0.04); }
+.bill-modal-body { padding: 18px; max-height:65vh; overflow-y:auto; }
+.bill-modal-actions { padding: 14px 18px; border-top:1px solid #eef2f7; display:flex; justify-content:flex-end; gap:8px; }
+
+/* bill tables */
+.bill-table { width:100%; border-collapse:collapse; margin-top:6px; }
+.detail-table th, .detail-table td { padding:10px; border-bottom: 1px solid #f3f4f6; text-align:left; font-size:0.95rem; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .stat-card-grid { grid-template-columns: repeat(2,1fr); }
+  .dashboard-main-grid { grid-template-columns: 1fr; }
 }
-.bill-modal-body {
-  padding: 18px;
-  max-height: 65vh;
-  overflow-y: auto;
+@media (max-width: 768px) {
+  .dashboard { padding: 16px; }
+  .stat-card-grid { grid-template-columns: 1fr; }
+  .card-title, .card-header { padding: 20px; padding-bottom: 16px; }
+  .card-content { padding: 0 20px 20px 20px; }
+  .summary-item { gap:12px; padding:10px; }
 }
-.bill-modal-actions {
-  padding: 14px 18px;
-  border-top: 1px solid #eef2f7;
-  display:flex;
-  justify-content:flex-end;
-  gap: 8px;
-}
-.sale-detail-modal .bill-table-wrapper { margin-top: 12px; }
-.detail-table th, .detail-table td { padding: 10px; border-bottom: 1px solid #f3f4f6; }
+
+/* ---------- Usage notes ----------
+ - Your component currently sets per-card color inline:
+     style={{ ['--card-color']: '#8b5cf6' }}
+   That is supported above (stripe & icon will use --card-color).
+ - If you prefer class-based colors, use .stat-card--blue, --purple, --green, --red, --amber.
+ - The stripe width is controlled by --dash-accent-left-width; adjust at top root if needed.
+----------------------------------- */

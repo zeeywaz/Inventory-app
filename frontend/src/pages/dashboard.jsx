@@ -191,7 +191,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="summary-item">
-                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#ede9fe' }}><Briefcase size={18} /></div>
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#aba2d4ff' }}><Briefcase size={18} /></div>
                   <div className="summary-text"><span className="summary-title">Inventory Value</span><span className="summary-subtitle">{allStocked} products</span></div>
                   <span className="summary-value">₨ {inventoryValue.toFixed(2)}</span>
                 </div>

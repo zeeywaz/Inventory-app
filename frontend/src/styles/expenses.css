@@ -1,138 +1,198 @@
-/* src/styles/expenses.css - Prefixed with ex- */
+/* src/styles/expenses.css - Prefixed with ex- (edited: left accent stripe) */
 :root {
-  /* Consistent Theme Variables */
-  --ex-bg: #f8f9fc;
+  --ex-bg: #f9fafb;
   --ex-card: #ffffff;
-  --ex-text-primary: #1f2937;
-  --ex-text-secondary: #4b5563;
-  --ex-text-muted: #6b7280;
-  --ex-border-color: #e5e7eb;
-  --ex-row-hover-bg: #f9fafb; /* Lighter hover */
-  --ex-blue: #6366f1; /* Button color */
-  --ex-blue-dark: #4f46e5;
-  --ex-orange: #f59e0b; /* Categories card */
-  --ex-red: #ef4444; /* Today's Expenses card */
-  --ex-radius: 10px;
-  --ex-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  --ex-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.06);
-  --ex-transition-fast: 0.15s ease-in-out;
-  --ex-transition-std: 0.2s ease-in-out;
-  --ex-input-bg: var(--ex-card);
-  --ex-input-focus-border: var(--ex-blue);
-  --ex-input-focus-shadow: rgba(99, 102, 241, 0.15);
+  --ex-text-primary: #0f172a;   /* darker */
+  --ex-text-secondary: #1f2937; /* darker */
+  --ex-text-muted: #475569;
+  --ex-border-color: #e6eef8;
+  --ex-blue: #4f46e5;    /* darker purple */
+  --ex-blue-dark: #4338ca;
+  --ex-orange: #f59e0b;
+  --ex-red: #dc2626;
+  --ex-radius: 12px;
+  --ex-shadow: 0 8px 26px rgba(2,6,23,0.08);
+  --ex-transition-std: 0.18s ease-in-out;
+  --ex-input-bg: #ffffff; /* solid white inputs */
+
+  /* Accent stripe (thin left) */
+  --ex-accent-left-width: 6px;
+  --ex-accent-left-hover-inset: 2px;
+  --ex-accent-left-color: var(--ex-blue);
 }
 
-/* Page Base */
+/* Page */
 .ex-page {
   padding: 2rem;
   background: var(--ex-bg);
   min-height: 100vh;
   box-sizing: border-box;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--ex-text-secondary);
 }
 
-/* Base Card Style (Apply if not global) */
+/* Reusable card (override if global exists) */
 .card {
-  background-color: var(--ex-card);
+  background: var(--ex-card);
   border-radius: var(--ex-radius);
-  box-shadow: var(--ex-shadow);
   border: 1px solid var(--ex-border-color);
-  transition: all var(--ex-transition-std);
-}
-.card:hover {
-  /* Optional hover */
-  /* transform: translateY(-4px); */
-  /* box-shadow: var(--ex-shadow-hover); */
+  box-shadow: var(--ex-shadow);
+  overflow: hidden;
 }
 
 /* Header */
 .ex-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom: 1.25rem;
 }
-.ex-header h2 { margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--ex-text-primary); }
-.ex-sub { margin: 0; color: var(--ex-text-muted); font-size: 0.95rem; margin-top: 0.25rem; }
+.ex-header h2 { margin:0; font-size:1.6rem; color:var(--ex-text-primary); }
+.ex-sub { margin:0; color:var(--ex-text-muted); font-size:0.95rem; margin-top:4px; }
 
-/* General Button Styles */
+/* Buttons */
 .ex-btn {
-  padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
-  font-weight: 600; font-size: 0.875rem; display: inline-flex; gap: 0.5rem;
-  align-items: center; justify-content: center; transition: all var(--ex-transition-std);
-  white-space: nowrap; line-height: 1.2;
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  transition: all var(--ex-transition-std);
 }
-.ex-btn:active { transform: scale(0.98); }
-.ex-btn:focus-visible { outline: 3px solid var(--ex-input-focus-shadow); outline-offset: 2px; }
-.ex-btn-primary { background: var(--ex-blue); color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.ex-btn-primary:hover { background: var(--ex-blue-dark); box-shadow: 0 4px 8px rgba(99, 102, 241, 0.2); transform: translateY(-1px); }
-.ex-btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; box-shadow: none; transform: none;}
-.ex-btn-secondary { background: var(--ex-card); border-color: var(--ex-border-color); color: var(--ex-text-secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-.ex-btn-secondary:hover { border-color: #d1d5db; background: #f9fafb; }
+.ex-btn-primary { background: var(--ex-blue); color: #fff; box-shadow: 0 6px 18px rgba(79,70,229,0.18); }
+.ex-btn-primary:hover { background: var(--ex-blue-dark); transform: translateY(-2px); }
+.ex-btn-secondary { background: var(--ex-card); border: 1px solid var(--ex-border-color); color: var(--ex-text-primary); }
 
-
-/* Stats Row */
-.ex-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0; }
-.ex-stat-card { /* Inherits .card */
+/* Stats row
+   Reworked to use a thin left accent stripe implemented via ::before.
+   Each .ex-stat-card can be colored by:
+     - inline: style="--card-color: #ef4444"
+     - helper class: .ex-stat-card.c-orange
+*/
+.ex-stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap: 1rem; margin: 1rem 0 1.5rem; }
+.ex-stat-card {
+  position: relative;
+  background: var(--ex-card);
   padding: 1.25rem;
-  border-left: 5px solid var(--card-color); /* Use CSS variable */
+  border-radius: var(--ex-radius);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+  transition: transform var(--ex-transition-std), box-shadow var(--ex-transition-std);
+  padding-left: calc(var(--ex-accent-left-width) + 16px); /* room for stripe */
+  overflow: hidden;
+  border: 1px solid transparent; /* consistent look */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.ex-stat-card:hover { transform: translateY(-4px); box-shadow: var(--ex-shadow-hover); }
-.stat-title { color: var(--ex-text-muted); font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; /* Add space below title */ }
-.stat-value { font-size: 1.75rem; font-weight: 700; color: var(--ex-text-primary); line-height: 1.2; margin-bottom: 0.25rem; /* Space below value */}
-.stat-subvalue { font-size: 0.8rem; color: var(--ex-text-muted); }
-/* Specific color used via inline style --card-color */
+.ex-stat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(2,6,23,0.06); }
 
-
-/* History Card */
-.ex-history-card { padding: 0; margin-top: 1.5rem; overflow: hidden; }
-.ex-list-header {
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--ex-border-color);
-  color: var(--ex-text-secondary); display: flex; align-items: center;
-  gap: 0.6rem; background-color: #fafbff; /* Subtle header bg */
+/* thin left stripe — uses inline --card-color fallback to --ex-accent-left-color */
+.ex-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--ex-accent-left-width);
+  background: var(--card-color, var(--ex-accent-left-color));
+  border-top-left-radius: var(--ex-radius);
+  border-bottom-left-radius: var(--ex-radius);
+  z-index: 0;
+  transition: width var(--ex-transition-std) ease, background 0.12s ease;
 }
-.ex-list-title { font-weight: 600; color: var(--ex-text-primary); font-size: 1rem; }
-.ex-card-content { padding: 1.5rem; } /* Add padding back for content area */
+.ex-stat-card:hover::before { width: calc(var(--ex-accent-left-width) + var(--ex-accent-left-hover-inset)); }
+.ex-stat-card > * { position: relative; z-index: 1; }
 
-/* Empty State */
-.ex-empty {
-  padding: 3rem 1rem; text-align: center; color: var(--ex-text-muted);
-  display: flex; flex-direction: column; gap: 1rem; align-items: center;
-  min-height: 300px; justify-content: center;
+/* stat inner text */
+.stat-title { color: var(--ex-text-muted); font-size:0.9rem; font-weight:600; }
+.stat-value { color: var(--ex-text-primary); font-size:1.5rem; font-weight:800; }
+.stat-subvalue { color: var(--ex-text-muted); font-size:0.85rem; }
+
+/* helper classes for quick coloring */
+.ex-stat-card.c-blue   { --card-color: var(--ex-blue); }
+.ex-stat-card.c-orange { --card-color: var(--ex-orange); }
+.ex-stat-card.c-red    { --card-color: var(--ex-red); }
+
+/* History card */
+.ex-history-card { padding:0; overflow:hidden; }
+.ex-list-header { padding: 12px 16px; border-bottom: 1px solid var(--ex-border-color); display:flex; gap:8px; align-items:center; background: #fbfbff; }
+.ex-list-title { font-weight:700; color:var(--ex-text-primary); }
+.ex-card-content { padding: 16px; }
+
+/* Empty state */
+.ex-empty { padding: 36px; text-align:center; color:var(--ex-text-muted); display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; }
+.ex-empty .ex-empty-icon { color:#c7d2fe; }
+.ex-empty p { margin:0; font-weight:600; }
+
+/* Table styling */
+.ex-table { width:100%; border-collapse:collapse; }
+.ex-table thead th { text-align:left; padding:12px; background:transparent; color:var(--ex-text-muted); font-weight:700; border-bottom:1px solid var(--ex-border-color); }
+.ex-table tbody td { padding:12px; border-bottom:1px solid #f3f6f9; color:var(--ex-text-primary); }
+
+/* Modal overlay & content */
+.ex-modal-overlay {
+  position:fixed;
+  inset:0;
+  background: rgba(8,10,32,0.5);
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding: 5vh 1rem;
+  z-index: 1400;
 }
-.ex-empty-icon { color: #cbd5e1; }
-.ex-empty p { margin: 0.5rem 0 1rem 0; font-size: 1rem; font-weight: 500; }
-.ex-empty .ex-btn { margin-top: 0.5rem; } /* Space above button */
+.ex-modal-content {
+  width:100%;
+  max-width: 560px;
+  background: var(--ex-card);
+  border-radius: 12px;
+  box-shadow: 0 25px 60px rgba(2,6,23,0.25);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  border: 1px solid var(--ex-border-color);
+}
+.ex-modal-header { padding: 14px 16px; border-bottom:1px solid var(--ex-border-color); display:flex; align-items:center; justify-content:space-between; }
+.ex-modal-header h3 { margin:0; font-size:1.05rem; color:var(--ex-text-primary); }
+.ex-modal-close { background: transparent; border: none; cursor: pointer; padding:6px; border-radius:6px; color:var(--ex-text-muted); }
 
+/* modal body layout */
+.ex-modal-body { padding: 16px; max-height: 70vh; overflow:auto; }
+.ex-form { display:flex; flex-direction:column; gap:12px; }
 
-/* Styles for Populated List (Placeholder) */
-.ex-list-table-wrapper { overflow-x: auto; padding: 0; /* Remove padding if table has it */}
-/* Add .ex-table styles here when ready */
-/* .ex-table { width: 100%; border-collapse: collapse; min-width: 600px; } */
-/* .ex-table thead th { ... } */
-/* .ex-table tbody td { ... } */
+/* form fields */
+.ex-field { display:flex; flex-direction:column; gap:6px; }
+.ex-field-label { font-weight:600; color:var(--ex-text-primary); font-size:0.9rem; }
+.ex-input { padding:10px 12px; border-radius:8px; border:1px solid var(--ex-border-color); background: var(--ex-input-bg); color:var(--ex-text-primary); font-size:0.95rem; outline:none; box-sizing:border-box; }
+.ex-input:focus { box-shadow: 0 6px 18px rgba(79,70,229,0.12); border-color: var(--ex-blue); }
+.ex-input-narrow { width:150px; }
 
+.ex-row { display:flex; gap:12px; }
+@media (max-width: 720px) { .ex-row { flex-direction:column; } .ex-input-narrow { width:100%; } }
 
-/* --- Add Expense Modal Styles (Placeholder) --- */
-/* Basic modal styles for structure - replace with your modal implementation */
-.ex-modal-overlay { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.6); display: flex; align-items: flex-start; justify-content: center; z-index: 1000; padding: 5vh 1rem; backdrop-filter: blur(4px); opacity: 0; animation: exModalFadeIn 0.3s forwards; }
-@keyframes exModalFadeIn { to { opacity: 1; } }
-.ex-modal-content { background: var(--ex-card); border-radius: var(--ex-radius); width: 100%; max-width: 500px; /* Standard modal width */ max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); overflow: hidden; transform: translateY(-20px); animation: exModalSlideUp 0.3s 0.1s forwards; }
-@keyframes exModalSlideUp { to { transform: translateY(0); } }
-.ex-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--ex-border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-.ex-modal-header h3 { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--ex-text-primary); }
-.ex-modal-close { background: none; border: none; cursor: pointer; padding: 0.35rem; line-height: 1; color: var(--ex-text-muted); border-radius: 50%; transition: all var(--ex-transition-std); }
-.ex-modal-close:hover { color: var(--ex-text-primary); background-color: var(--ex-bg); transform: rotate(90deg); }
-.ex-modal-close svg { display: block; }
-.ex-modal-body { padding: 1.5rem 1.25rem; overflow-y: auto; flex-grow: 1; color: var(--ex-text-secondary); }
-.ex-modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--ex-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--ex-bg); flex-shrink: 0; }
-/* Uses .ex-btn styles */
+/* currency symbol style */
+.ex-currency { font-weight:700; font-size:1rem; color:var(--ex-text-primary); padding-left:6px; }
 
+/* textarea */
+.ex-textarea { min-height:86px; resize:vertical; }
 
-/* --- Responsive --- */
-@media (max-width: 768px) {
+/* file input */
+.ex-file-input { border-radius:8px; padding:6px; }
+.ex-file-preview { margin-top:8px; display:flex; align-items:center; gap:8px; color:var(--ex-text-muted); }
+
+/* form errors */
+.ex-form-error { color: var(--ex-red); font-weight:700; padding:8px 10px; background:#fff7f7; border-radius:8px; border:1px solid rgba(220,38,38,0.06); }
+
+/* modal footer */
+.ex-modal-footer { padding: 12px 16px; border-top:1px solid var(--ex-border-color); display:flex; gap:10px; justify-content:flex-end; background:#fbfbff; }
+
+/* small accessibility */
+.ex-modal-content:focus { outline: none; }
+
+/* responsive */
+@media (max-width: 640px) {
   .ex-page { padding: 1rem; }
-  .ex-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
-  .ex-header .ex-btn { width: 100%; justify-content: center; } /* Full width button */
-  .ex-stats-row { grid-template-columns: 1fr; } /* Stack stats */
-  .ex-modal-content { max-width: 95%; }
+  .ex-stats-row { grid-template-columns: 1fr; }
+  .ex-modal-content { max-width: 96%; }
 }

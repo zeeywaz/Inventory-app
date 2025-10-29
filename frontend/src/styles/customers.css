@@ -1,4 +1,4 @@
-/* customers.css - Prefixed with cu- */
+/* customers.css - Prefixed with cu- (edited to use thin left accent stripe) */
 :root {
   --cu-bg: #f8f9fc; /* Consistent light background */
   --cu-card: #ffffff;
@@ -16,6 +16,11 @@
   --cu-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.06);
   --cu-transition-fast: 0.15s ease-in-out;
   --cu-transition-std: 0.2s ease-in-out;
+
+  /* Accent stripe (thin left) */
+  --cu-accent-left-width: 6px;
+  --cu-accent-left-hover-inset: 2px;
+  --cu-accent-left-color: var(--cu-blue); /* fallback if --card-color not set inline */
 }
 
 /* Page Base */
@@ -38,10 +43,9 @@
 
 /* Top actions (Buttons) */
 .cu-actions { display: flex; gap: 0.75rem; align-items: center; }
-/* Use general button styles defined below */
 
-/* General Button Styles (Can share with other pages) */
-.cu-btn { /* Renamed from btn-primary/btn-muted for consistency */
+/* General Button Styles */
+.cu-btn {
   padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
   font-weight: 600; font-size: 0.875rem; display: inline-flex; gap: 0.5rem;
   align-items: center; justify-content: center; transition: all var(--cu-transition-std);
@@ -54,21 +58,46 @@
 .cu-btn-secondary { background: var(--cu-card); border-color: var(--cu-border-color); color: var(--cu-text-secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
 .cu-btn-secondary:hover { border-color: #d1d5db; background: #f9fafb; }
 
-
-/* Stats */
+/* Stats (updated to use ::before stripe) */
 .cu-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0; }
 .cu-stat-card {
-  background: var(--cu-card); padding: 1.25rem; border-radius: var(--cu-radius);
-  border-left: 5px solid var(--cu-border-color); box-shadow: var(--cu-shadow);
-  transition: all var(--cu-transition-std);
+  position: relative;
+  background: var(--cu-card);
+  padding: 1.25rem;
+  border-radius: var(--cu-radius);
+  box-shadow: var(--cu-shadow);
+  transition: transform var(--cu-transition-std), box-shadow var(--cu-transition-std);
+  padding-left: calc(var(--cu-accent-left-width) + 16px); /* room for stripe */
+  overflow: hidden; /* clip stripe to radius */
+  border: 1px solid transparent; /* keep consistent */
 }
 .cu-stat-card:hover { transform: translateY(-4px); box-shadow: var(--cu-shadow-hover); }
-/* Colored borders */
-.cu-stat-card.c-blue { border-left-color: var(--cu-blue); }
-.cu-stat-card.c-orange { border-left-color: var(--cu-orange); }
-.cu-stat-card.c-red { border-left-color: var(--cu-red); }
+
+/* left stripe (uses inline --card-color or fallback to --cu-accent-left-color) */
+.cu-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--cu-accent-left-width);
+  background: var(--card-color, var(--cu-accent-left-color));
+  border-top-left-radius: var(--cu-radius);
+  border-bottom-left-radius: var(--cu-radius);
+  z-index: 0;
+  transition: width var(--cu-transition-std) ease, background 0.12s ease;
+}
+.cu-stat-card:hover::before { width: calc(var(--cu-accent-left-width) + var(--cu-accent-left-hover-inset)); }
+
+/* ensure content sits above stripe */
+.cu-stat-card > * { position: relative; z-index: 1; }
+
 .cu-stat-title { color: var(--cu-text-muted); font-size: 0.9rem; font-weight: 500;}
 .cu-stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; color: var(--cu-text-primary); }
+
+/* preset color helper classes (optional) */
+.cu-stat-card.c-blue   { --card-color: var(--cu-blue); }
+.cu-stat-card.c-orange { --card-color: var(--cu-orange); }
+.cu-stat-card.c-red    { --card-color: var(--cu-red); }
+.cu-stat-card.c-green  { --card-color: var(--cu-green); }
 
 /* Search */
 .cu-search-row { margin-bottom: 1.5rem; display: flex; }
@@ -78,9 +107,7 @@
   display: flex; align-items: center; width: 100%; max-width: 600px; /* Limit width */
   transition: border-color var(--cu-transition-fast), box-shadow var(--cu-transition-fast);
 }
-.cu-search-icon { /* Added class for icon */
-  position: absolute; left: 1rem; color: var(--cu-text-muted); pointer-events: none;
-}
+.cu-search-icon { position: absolute; left: 1rem; color: var(--cu-text-muted); pointer-events: none; }
 .cu-search input {
   border: none; outline: none; background: transparent; font-size: 0.95rem; width: 100%;
   padding: 0.7rem 1rem 0.7rem 3rem; /* Padding for icon */
@@ -92,14 +119,13 @@
 }
 
 /* Table card */
-.cu-table-card { /* Renamed from .cu-table.card */
+.cu-table-card {
   padding: 0; /* Remove padding, header/body handle it */
   border-radius: var(--cu-radius); margin-top: 1rem; border: 1px solid var(--cu-border-color);
-  background: var(--cu-card); box-shadow: var(--cu-shadow); overflow: hidden; /* Important */
+  background: var(--cu-card); box-shadow: var(--cu-shadow); overflow: hidden;
 }
 .cu-table-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--cu-border-color); background-color: #fafbfe; }
 .cu-table-title { font-weight: 600; display: flex; gap: 0.6rem; align-items: center; color: var(--cu-text-primary); font-size: 1rem; }
-/* Add styles for potential pagination/filter controls in header */
 
 /* Table */
 .cu-table-wrap { overflow-x: auto; }
@@ -126,11 +152,10 @@
 .cu-status { padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: capitalize; border: 1px solid transparent; display: inline-block; white-space: nowrap; }
 .cu-status.warn { background: #fef2f2; color: var(--cu-red); border-color: #fecaca; } /* Brighter red */
 .cu-status.clear { background: #ecfdf5; color: var(--cu-green); border-color: #d1fae5; } /* Consistent green */
-/* Add more status styles if needed */
 
 .cu-actions-col { text-align: right; width: 120px; /* Reduced width */}
 
-/* Action Icons (using shared icon-btn style) */
+/* Action Icons */
 .icon-btn {
   background: transparent; border: none; padding: 6px; display: inline-grid;
   place-items: center; cursor: pointer; border-radius: 50%; /* Circular */
@@ -144,7 +169,7 @@
 .cu-empty { text-align: center; padding: 3rem 1rem; color: var(--cu-text-muted); font-size: 0.95rem; font-weight: 500; }
 
 /* Modal Styles */
-.cu-modal-overlay { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.6); display: flex; align-items: flex-start; /* Align top */ justify-content: center; z-index: 2000; padding: 5vh 1rem; backdrop-filter: blur(4px); opacity: 0; animation: cuModalFadeIn 0.3s forwards; }
+.cu-modal-overlay { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.6); display: flex; align-items: flex-start; justify-content: center; z-index: 2000; padding: 5vh 1rem; backdrop-filter: blur(4px); opacity: 0; animation: cuModalFadeIn 0.3s forwards; }
 @keyframes cuModalFadeIn { to { opacity: 1; } }
 
 .cu-modal {
@@ -161,7 +186,7 @@
 .cu-close { background: none; border: none; font-size: 1.5rem; /* Bigger X */ cursor: pointer; color: var(--cu-text-muted); line-height: 1; padding: 0.25rem; border-radius: 50%; transition: all var(--cu-transition-fast); }
 .cu-close:hover { background: var(--cu-bg); color: var(--cu-text-primary); }
 
-.cu-modal-body { padding: 1.5rem 1.25rem; overflow-y: auto; flex-grow: 1; /* Scroll body */}
+.cu-modal-body { padding: 1.5rem 1.25rem; overflow-y: auto; flex-grow: 1; /* Scroll body */ }
 .cu-modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--cu-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--cu-bg); flex-shrink: 0; }
 
 /* Modal Form Fields */
@@ -184,15 +209,12 @@
 
 /* Amount input style */
 .cu-amount-row { display: flex; align-items: center; gap: 0.5rem; }
-/* Assuming the input takes full width via .cu-field */
-.cu-currency { /* Style as needed, maybe remove if not visually distinct */ }
-
-/* buttons reuse .cu-btn styles */
+.cu-currency { }
 
 /* responsive */
 @media (max-width: 980px) {
   .cu-stats-row { grid-template-columns: repeat(2, 1fr); }
-  .cu-row { flex-direction: column; gap: 0; } /* Stack modal fields */
+  .cu-row { flex-direction: column; gap: 0; }
   .cu-row .cu-field { margin-bottom: 1rem; }
   .cu-table { min-width: 760px; }
   .cu-modal { width: 94%; }
