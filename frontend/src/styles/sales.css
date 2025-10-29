@@ -1,0 +1,240 @@
+/* src/styles/sales.css */
+/* Styles for Sales page AND Modals */
+
+/* --- Base & Variables --- */
+:root {
+  --sales-brand-purple: #6366f1; /* Main purple */
+  --sales-brand-purple-dark: #4f46e5; /* Darker purple */
+  --sales-brand-green: #10b981;
+  --sales-brand-red: #ef4444;
+  --sales-brand-red-dark: #dc2626; /* Darker red */
+  --sales-text-primary: #111827; /* Dark Gray for headings/important text */
+  --sales-text-secondary: #374151; /* Medium-Dark Gray for body text */
+  --sales-text-light: #6b7280; /* Medium Gray for subtitles/placeholders */
+  --sales-bg-light: #f9fafb; /* Very Light Gray page background */
+  --sales-bg-white: #ffffff; /* Card/Modal background */
+  --sales-border-color: #e5e7eb; /* Light Gray Border */
+  --sales-input-bg: #ffffff; /* White input background for better contrast */
+  --sales-input-focus-border: var(--sales-brand-purple);
+  --sales-input-focus-shadow: rgba(99, 102, 241, 0.2);
+  --sales-row-hover-bg: #f3f4f6; /* Light hover for rows */
+}
+
+/* --- Sales Page Base --- */
+.sales-page { padding: 2rem; background-color: var(--sales-bg-light); min-height: 100%; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--sales-text-secondary); }
+
+/* --- Base Card Style --- */
+.card { background-color: var(--sales-bg-white); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid var(--sales-border-color); transition: all 0.2s ease-in-out; }
+.card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05); }
+.card-title { font-size: 1.1rem; font-weight: 600; color: var(--sales-text-primary); margin: 0; padding: 1.5rem; padding-bottom: 1rem; }
+.card-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--sales-border-color); }
+.card-header .card-title { padding: 0; }
+.card-content { padding: 1.5rem; }
+
+/* --- Sales Page Header --- */
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.header-title h1 { font-size: 1.75rem; font-weight: 700; margin: 0; color: var(--sales-text-primary); }
+.header-title p { font-size: 0.9rem; color: var(--sales-text-light); margin-top: 0.25rem; }
+
+/* --- Buttons --- */
+.new-bill-button, .record-sale-button { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.1rem; font-size: 0.875rem; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s ease; background-color: var(--sales-brand-purple); color: white; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.new-bill-button:hover, .record-sale-button:hover { background-color: var(--sales-brand-purple-dark); box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2); transform: translateY(-2px); }
+.new-bill-button:active, .record-sale-button:active { transform: translateY(0px) scale(0.98); }
+
+/* --- Stat Card Grid --- */
+.sales-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.stat-card { padding: 1.5rem; border-top: none; border-left: 5px solid var(--card-color, var(--sales-brand-purple)); display: flex; justify-content: space-between; align-items: flex-start; border-radius: 8px; }
+.stat-card:hover { border-left-width: 8px; border-top-width: 0; transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05); }
+.stat-card-info {}
+.stat-title { font-size: 0.9rem; font-weight: 500; color: var(--sales-text-secondary); }
+.stat-value { font-size: 2rem; font-weight: 700; color: var(--sales-text-primary); margin-top: 0.25rem; line-height: 1.2; }
+.stat-subvalue { font-size: 0.8rem; color: var(--sales-text-light); margin-top: 0.25rem; }
+.stat-card-placeholder { background: transparent; border: none; box-shadow: none; padding: 1.5rem; border-radius: 8px; }
+
+/* --- Sales History Card --- */
+.sales-history-card { padding: 0; }
+.history-title { display: flex; align-items: center; gap: 0.5rem; color: var(--sales-text-primary); }
+
+/* --- Empty State --- */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1rem; text-align: center; color: var(--sales-text-light); }
+.empty-icon { color: #d1d5db; margin-bottom: 1rem; }
+.empty-state p { font-size: 1rem; font-weight: 500; margin-bottom: 1.5rem; }
+
+/* --- Sales List --- */
+.sales-history-list { min-height: 200px; padding-top: 0.5rem; }
+.sale-row { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--sales-border-color); font-size: 0.9rem; transition: background-color 0.15s ease; cursor: pointer; /* Make row clickable */ }
+.sale-row:hover { background-color: var(--sales-row-hover-bg); margin: 0 -1.5rem; padding: 0.75rem 1.5rem; }
+.sale-row:last-child { border-bottom: none; }
+.sale-details { display: flex; align-items: center; gap: 1rem; }
+.sale-id { font-weight: 600; color: var(--sales-text-primary); background-color: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.8rem;}
+.sale-meta { color: var(--sales-text-light); font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.1rem; }
+.sale-meta span:last-child { font-style: italic; }
+.sale-actions { display: flex; align-items: center; gap: 1rem; }
+.sale-amount { font-weight: 600; color: var(--sales-brand-green); }
+.delete-sale-button { background: none; border: none; color: var(--sales-text-light); cursor: pointer; padding: 4px; border-radius: 50%; line-height: 1; opacity: 0; transition: all 0.2s ease; z-index: 2; /* Ensure button is clickable over row */ position: relative; }
+.sale-row:hover .delete-sale-button { opacity: 1; }
+.delete-sale-button:hover { color: var(--sales-brand-red); background-color: #fef2f2; }
+
+/* =====================================
+--- Sleek & Unique New Bill / Detail Modal Styles ---
+===================================== */
+.bill-modal-overlay { position: fixed; inset: 0; background-color: rgba(17, 24, 39, 0.6); display: flex; align-items: flex-start; justify-content: center; z-index: 1000; padding: 5vh 1rem; backdrop-filter: blur(4px); opacity: 0; animation: billModalFadeIn 0.3s forwards; }
+@keyframes billModalFadeIn { to { opacity: 1; } }
+.bill-modal-content { background-color: var(--sales-bg-white); border-radius: 12px; width: 100%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; transform: translateY(-20px); animation: billModalSlideUp 0.3s 0.1s forwards; }
+@keyframes billModalSlideUp { to { transform: translateY(0); } }
+.bill-modal-header { padding: 1rem 1.75rem; border-bottom: 1px solid var(--sales-border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.bill-modal-header h3 { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--sales-text-primary); }
+.bill-modal-close { background: none; border: none; cursor: pointer; padding: 0.35rem; line-height: 1; color: var(--sales-text-light); border-radius: 50%; transition: all 0.2s ease; }
+.bill-modal-close:hover { color: var(--sales-text-primary); background-color: var(--sales-bg-light); transform: rotate(90deg); }
+.bill-modal-close svg { display: block; }
+.bill-modal-body { padding: 1.5rem 1.75rem; overflow-y: auto; flex-grow: 1; color: var(--sales-text-secondary); }
+
+/* Modal Form Fields */
+.bill-modal-body .field { display: block; margin-bottom: 1.5rem; }
+.bill-modal-body .field-label { display: flex; align-items: center; font-size: 0.8rem; font-weight: 500; color: var(--sales-text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.bill-modal-body input[type="text"], .bill-modal-body input[type="number"], .bill-modal-body select { width: 100%; padding: 0.8rem 1rem; border: 1px solid var(--sales-border-color); border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; background-color: var(--sales-input-bg); color: var(--sales-text-primary); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.bill-modal-body input::placeholder { color: var(--sales-text-light); opacity: 0.8; }
+.bill-modal-body input:focus, .bill-modal-body select:focus { outline: none; border-color: var(--sales-input-focus-border); box-shadow: 0 0 0 3px var(--sales-input-focus-shadow); }
+.bill-modal-body .row { display: flex; gap: 1rem; }
+.bill-modal-body .row .field { flex: 1; }
+.bill-modal-body .form-error { background-color: #fef2f2; color: var(--sales-brand-red-dark); border: 1px solid #fecaca; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; margin-top: 1rem; margin-bottom: 1rem; text-align: center; }
+
+/* Customer Section */
+.bill-customer-section {}
+.customer-select { margin-bottom: 0.75rem; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.7rem center; background-size: 1.1em; padding-right: 2.5rem; }
+.vehicle-number-input { margin-top: 0.75rem; }
+
+/* Search Section */
+.search-section { position: relative; margin-bottom: 2rem; }
+.search-input-wrapper { position: relative; }
+.search-icon { position: absolute; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--sales-text-light); pointer-events: none; }
+.search-section input { padding-left: 3rem; background-color: var(--sales-bg-white); }
+.search-results-list { list-style: none; padding: 0.5rem 0; margin: 0.25rem 0 0; position: absolute; width: 100%; background: var(--sales-bg-white); border: 1px solid var(--sales-border-color); border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 1001; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.03); }
+.search-result-item { padding: 0.6rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; transition: background-color 0.15s ease; }
+.search-result-item:hover { background-color: var(--sales-row-hover-bg); }
+.result-name { color: var(--sales-text-secondary); font-weight: 500; }
+.result-details { font-size: 0.8rem; color: var(--sales-text-light); }
+
+/* Bill Items Section */
+.bill-items-section { min-height: 100px; margin-top: 1.5rem; }
+.empty-bill { text-align: center; color: var(--sales-text-light); padding: 2rem 0; font-size: 0.9rem; }
+.bill-table-wrapper { border: 1px solid var(--sales-border-color); border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
+.bill-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.bill-table th { padding: 0.8rem 1rem; text-align: left; font-size: 0.7rem; font-weight: 600; color: var(--sales-text-light); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--sales-border-color); background-color: var(--sales-bg-light); white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+.bill-table td { padding: 0.8rem 1rem; text-align: left; font-size: 0.9rem; color: var(--sales-text-secondary); border-bottom: 1px solid var(--sales-border-color); vertical-align: middle; }
+.bill-table tbody tr:hover { background-color: var(--sales-row-hover-bg); }
+.bill-table tbody tr:last-child td { border-bottom: none; }
+.bill-table .row-invalid td { background-color: #fff7f7; }
+
+/* Column Alignments & Widths */
+.th-product, td[data-label="Product"] { width: auto; }
+.th-price, td[data-label="Price"] { width: 140px; text-align: right; }
+.th-qty, td[data-label="Qty"] { width: 100px; text-align: center; }
+.th-total, td[data-label="Total"] { width: 140px; text-align: right; }
+.th-action, td[data-label="Action"] { width: 60px; text-align: center; }
+
+/* Table Inputs */
+.price-input-container { display: flex; align-items: center; justify-content: flex-end; }
+.quantity-input-container { display: flex; flex-direction: column; align-items: center; }
+
+.price-input, .quantity-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.9rem; transition: all 0.2s ease; background-color: var(--sales-input-bg); color: var(--sales-text-primary); text-align: center; width: 70px; }
+.price-input { text-align: right; width: 100px; }
+.price-input:focus, .quantity-input:focus { outline: none; border-color: var(--sales-input-focus-border); box-shadow: 0 0 0 2px var(--sales-input-focus-shadow); }
+.price-input-currency { color: var(--sales-text-light); font-size: 0.85rem; margin-right: 0.4rem; }
+
+/* Input Error States */
+.price-invalid, .quantity-invalid { border-color: var(--sales-brand-red); background-color: #fef2f2; }
+.price-invalid:focus, .quantity-invalid:focus { border-color: var(--sales-brand-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1); }
+.validation-error-inline { color: var(--sales-brand-red); font-size: 0.75rem; font-weight: 500; display: block; margin-top: 4px; text-align: right; width: 100%; }
+.validation-error-inline.qty-error { text-align: center; }
+
+.cell-total { font-weight: 500; color: var(--sales-text-primary); }
+.cell-action {}
+.link-btn.remove-btn { background: none; border: none; color: var(--sales-text-light); cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s ease; line-height: 1; }
+.link-btn.remove-btn:hover { color: var(--sales-brand-red); background-color: #fef2f2; }
+
+/* Bill Summary Section */
+.bill-summary-section { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--sales-border-color); display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+.summary-line { width: 100%; display: flex; justify-content: flex-end; align-items: center; min-height: 1.25rem; }
+.validation-error { color: var(--sales-brand-red); font-size: 0.875rem; font-weight: 500; text-align: right; }
+.grand-total-line { margin-top: 0.5rem; }
+.grand-total-label { font-size: 1rem; font-weight: 600; color: var(--sales-text-secondary); margin-right: 1rem; }
+.grand-total-value { font-size: 1.75rem; font-weight: 700; color: var(--sales-text-primary); }
+
+/* Modal Footer */
+.bill-modal-actions { padding: 1rem 1.75rem; border-top: 1px solid var(--sales-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--sales-bg-light); flex-shrink: 0; }
+.bill-modal-actions .btn { padding: 0.7rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
+.bill-modal-actions .btn:active { transform: scale(0.98); }
+.bill-modal-actions .btn-primary { background-color: var(--sales-brand-purple); border-color: var(--sales-brand-purple); color: white; }
+.bill-modal-actions .btn-primary:hover { background-color: var(--sales-brand-purple-dark); border-color: var(--sales-brand-purple-dark); }
+.bill-modal-actions .btn-primary:disabled { background-color: #c4b5fd; border-color: #c4b5fd; color: #ede9fe; cursor: not-allowed; }
+.bill-modal-actions .btn-secondary { background-color: var(--sales-bg-white); border-color: #d1d5db; color: var(--sales-text-secondary); }
+.bill-modal-actions .btn-secondary:hover { background-color: #f3f4f6; border-color: #adb5bd; }
+
+/* Hide number input spinners */
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* Visually Hidden Class */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+
+/* --- Sale Detail Modal Styles (NEW) --- */
+.sale-detail-modal .bill-modal-body { /* Reuse body padding */}
+.sale-detail-summary {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px dashed var(--sales-border-color);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Responsive grid */
+    gap: 0.75rem 1.5rem; /* Row and column gap */
+    font-size: 0.9rem;
+    color: var(--sales-text-secondary);
+}
+.sale-detail-summary div strong {
+    color: var(--sales-text-primary);
+    margin-right: 0.5rem;
+}
+.sale-detail-modal h4 { /* Style for "Items Sold" */
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--sales-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+    margin-top: 0;
+}
+.sale-detail-modal .bill-table-wrapper { margin-bottom: 0; border: none; } /* Remove border/margin */
+.sale-detail-modal .bill-table th { background-color: transparent; } /* Lighter header */
+.sale-detail-modal .bill-table td { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.sale-detail-modal .detail-summary { margin-top: 0; padding-top: 1rem; } /* Adjust spacing for total */
+
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+  .sales-page { padding: 1rem; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .new-bill-button { width: 100%; justify-content: center; }
+  .sales-stat-grid { grid-template-columns: 1fr; }
+  /* .help-button REMOVED */
+  .bill-modal-content { max-width: 95%; max-height: 95vh; }
+  .bill-modal-actions { flex-direction: column; gap: 0.5rem; }
+  .bill-modal-actions .btn { width: 100%; }
+  /* Basic Table Stacking for Mobile */
+  .bill-table thead { display: none; }
+  .bill-table tbody, .bill-table tr, .bill-table td { display: block; width: 100% !important; }
+  .bill-table tr { margin-bottom: 1rem; border: 1px solid var(--sales-border-color); border-radius: 8px; overflow: hidden; padding: 0.5rem 0; }
+  .bill-table td { text-align: right !important; padding-left: 50% !important; position: relative; border-bottom: 1px dotted var(--sales-border-color); padding-top: 0.75rem; padding-bottom: 0.75rem; min-height: 40px; display: flex; align-items: center; justify-content: flex-end; }
+  .bill-table td:last-child { border-bottom: none; }
+  .bill-table td::before { content: attr(data-label); position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-weight: 600; color: var(--sales-text-light); text-align: left; white-space: nowrap; }
+  .bill-table td[data-label="Product"] { text-align: left !important; padding-left: 1rem !important; font-weight: 500; color: var(--sales-text-primary); justify-content: flex-start; }
+  .bill-table td[data-label="Product"]::before { display: none; }
+  .bill-table td[data-label="Action"] { justify-content: center; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .price-input-container, .quantity-input-container { align-items: flex-end; width: auto; }
+  .price-input, .quantity-input { width: 100px; }
+  .price-input-container .price-input-currency { position: static; margin: 0 0.2rem 0 0; }
+  .price-input-container { flex-direction: row-reverse; }
+  .validation-error-inline { text-align: right; }
+  /* REMOVED max-qty-note from mobile styles */
+  .quantity-input-container { /* No changes needed now */ }
+}

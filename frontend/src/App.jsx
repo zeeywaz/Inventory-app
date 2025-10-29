@@ -9,6 +9,7 @@ import { DataProvider } from './contexts/DataContext';
 import { Layout } from './components/Layout';
 import LoginPage from './pages/login';
 import Dashboard from './pages/dashboard';
+import Sales from './pages/sales';
 // ... import your other pages here as you build them ...
 
 /**
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="/" element={<ProtectedRoutes />}>
               <Route index element={<Dashboard />} /> 
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/sales" element={<Sales />} />
               {/* When you're ready, add your other pages:
                 <Route path="/sales" element={<SalesPage />} />
                 <Route path="/products" element={<ProductsPage />} />

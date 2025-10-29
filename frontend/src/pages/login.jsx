@@ -1,14 +1,16 @@
+// src/pages/login.jsx
 import React, { useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "../styles/login.css";
-import {Briefcase} from "lucide-react";
-
+import { Briefcase } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
 
   // UI state
-  const [step, setStep] = useState("login"); // could be 'login' | 'requestOtp' | 'verifyOtp'
+  const [step, setStep] = useState("login");
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -17,12 +19,10 @@ export default function LoginPage() {
   const [otpEmail, setOtpEmail] = useState("");
   const [err, setErr] = useState("");
 
-  // derived
   const canSubmit = useMemo(() => {
     return form.username.trim().length > 0 && form.password.trim().length > 0;
   }, [form]);
 
-  // update helper
   function update(field) {
     return (e) => {
       const value = e?.target ? e.target.value : e;
@@ -31,7 +31,6 @@ export default function LoginPage() {
     };
   }
 
-  // form submit (demo behavior) - replace with real API call
   async function onSubmit(e) {
     e.preventDefault();
     setErr("");
@@ -42,9 +41,6 @@ export default function LoginPage() {
 
     try {
       setIsLoading(true);
-
-      // Demo login logic:
-      // Accept admin/admin123 and staff/staff123 as in your screenshot.
       await new Promise((r) => setTimeout(r, 600)); // simulate network
 
       const { username, password } = form;
@@ -52,13 +48,21 @@ export default function LoginPage() {
         (username === "admin" && password === "admin123") ||
         (username === "staff" && password === "staff123")
       ) {
-        // redirect after "login"
-        // you might want to set a user context / token here
+        // demo user object — normalized role set here
+        const demoUser = {
+          username,
+          role: username === "admin" ? "admin" : "staff",
+          token: "demo-token",
+        };
+
+        // set user in AuthContext
+        auth.login(demoUser);
+
+        // navigate to root — ProtectedRoutes will render the correct dashboard
         navigate("/", { replace: true });
         return;
       }
 
-      // invalid credentials:
       setErr("Invalid username or password.");
     } catch (error) {
       console.error(error);
@@ -72,7 +76,6 @@ export default function LoginPage() {
     <main id="main" className="auth-main" role="main">
       <section className="auth-card" aria-label="Login">
         <header className="auth-head">
-          {/* circular decorative background created by CSS ::before */}
           <div className="auth-icon" aria-hidden>
             <Briefcase size={48} />
           </div>
@@ -81,7 +84,6 @@ export default function LoginPage() {
           <p className="auth-subtitle">Manage your Inventory Efficiently</p>
         </header>
 
-        {/* ---------------- Login form ---------------- */}
         {step === "login" && (
           <form className="auth-form" onSubmit={onSubmit} noValidate>
             <div className="auth-field">
@@ -145,7 +147,6 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* ---------------- Request OTP (simple placeholder) ---------------- */}
         {step === "requestOtp" && (
           <div className="auth-form">
             <p className="text-muted">Enter your username or email to request password reset OTP.</p>
@@ -154,7 +155,7 @@ export default function LoginPage() {
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="auth-btn" onClick={() => { /* call reset API */ setStep("login"); }}>Request OTP</button>
+              <button className="auth-btn" onClick={() => { setStep("login"); }}>Request OTP</button>
               <button className="auth-link-btn" onClick={() => setStep("login")}>Back</button>
             </div>
           </div>

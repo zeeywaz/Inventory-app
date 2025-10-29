@@ -1,158 +1,138 @@
-import React from 'react';
+// src/pages/dashboard.jsx
+import React, { useState } from 'react';
 import '../styles/dashboard.css';
-import { useData } from '../contexts/DataContext'; // <-- 1. ADD THIS IMPORT
+import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
+import { ShoppingCart, Package, TrendingUp, DollarSign, BarChart, Users, Briefcase, Wallet } from 'lucide-react';
 import {
-  ShoppingCart,
-  Package,
-  TrendingUp,
-  DollarSign,
-  BarChart,
-  Users,
-  Briefcase,
-  PiggyBank,
-  ArrowUp,
-} from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { X } from 'lucide-react';
 
-// --- StatCard and SummaryItem components go here ---
-// (Copy them from your file)
-function StatCard({ title, value, subValue, icon, color }) {
+// small Sale Detail modal (reused UI)
+function SaleDetailModal({ isOpen, onClose, sale }) {
+  if (!isOpen || !sale) return null;
+  const fmt = (amt) => `₨${(Number(amt) || 0).toFixed(2)}`;
   return (
-    <div className="card stat-card" style={{ '--card-color': color }}>
-      <div className="stat-card-info">
-        <span className="stat-title">{title}</span>
-        <span className="stat-value">{value}</span>
-        <span className="stat-subvalue">
-          {subValue === '$0.00 revenue' && <ArrowUp size={14} color="#10b981" />}
-          {subValue}
-        </span>
-      </div>
-      <div className="stat-icon" style={{ color }}>
-        {icon}
+    <div className="bill-modal-overlay" onClick={onClose}>
+      <div className="bill-modal-content sale-detail-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="bill-modal-header">
+          <h3>Sale Details (#{(sale.id || '').toString().slice(-6)})</h3>
+          <button type="button" className="bill-modal-close" onClick={onClose} aria-label="Close details"><X size={20} /></button>
+        </div>
+        <div className="bill-modal-body">
+          <div><strong>Date:</strong> {new Date(sale.date).toLocaleString()}</div>
+          <div><strong>Customer:</strong> {sale.customerName || 'Walk-in'}</div>
+          {sale.vehicleNumber && <div><strong>Vehicle #:</strong> {sale.vehicleNumber}</div>}
+          <h4>Items</h4>
+          <div className="bill-table-wrapper">
+            <table className="bill-table detail-table">
+              <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+              <tbody>
+                {(sale.lines || []).map((ln, i) => (
+                  <tr key={i}>
+                    <td>{ln.productName}</td>
+                    <td>{ln.quantity}</td>
+                    <td>{fmt(ln.unitPrice)}</td>
+                    <td>{fmt(ln.unitPrice * (ln.quantity || 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bill-summary-section detail-summary">
+            <div className="summary-line grand-total-line">
+              <span className="grand-total-label">Grand Total</span>
+              <span className="grand-total-value">{fmt(sale.totalAmount)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bill-modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   );
 }
-function SummaryItem({ title, subtitle, value, icon, bgColor }) {
-  return (
-    <div className="summary-item">
-      <div className="summary-icon-wrapper" style={{ backgroundColor: bgColor }}>
-        {icon}
-      </div>
-      <div className="summary-text">
-        <span className="summary-title">{title}</span>
-        <span className="summary-subtitle">{subtitle}</span>
-      </div>
-      <span className="summary-value">{value}</span>
-    </div>
-  );
-}
 
-
-// --- Main Dashboard Component ---
-// 2. CHANGE THIS TO A DEFAULT EXPORT
 export default function Dashboard() {
-  const { sales, products, customers } = useData(); // This will now work!
+  const { sales = [], products = [], customers = [] } = useData() || {};
+  const { isAdmin = false, isStaff = false } = useAuth() || {};
+  const [detailSale, setDetailSale] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  // --- Calculations ---
-  const todaySalesCount = 0;
-  const todayRevenue = 0.0;
-  // Use .length check to prevent error if products is undefined
-  const allStocked = products?.length || 0;
-  const todayProfit = 0.0;
-  const outstandingCredit = 0.0;
-  const creditCustomers = 0;
+  const todayStr = new Date().toDateString();
+  const todaySalesRecords = (sales || []).filter((s) => new Date(s.date).toDateString() === todayStr);
+  const todaySalesCount = todaySalesRecords.length;
+  const todayRevenue = todaySalesRecords.reduce((sum, s) => sum + (Number(s.totalAmount ?? s.total_amount ?? 0) || 0), 0);
+  const allStocked = (products || []).length;
+  const inventoryValue = (products || []).reduce((sum, p) => sum + (Number(p.costPrice ?? p.cost_price ?? 0) || 0) * (Number(p.quantityInStock ?? p.quantity_in_stock ?? 0) || 0), 0);
+  const totalCustomers = (customers || []).length;
 
-  const inventoryValue = products?.reduce(
-    (sum, p) => sum + (p.costPrice || 0) * (p.quantityInStock || 0),
-    0
-  ) || 0;
-  
-  const totalCustomers = customers?.length || 0;
-  
-  const salesTrendData = [
-    { name: 'Tue', sales: 0 },
-    { name: 'Wed', sales: 0 },
-    { name: 'Thu', sales: 0 },
-    { name: 'Fri', sales: 0 },
-    { name: 'Sat', sales: 0 },
-    { name: 'Sun', sales: 0 },
-    { name: 'Mon', sales: 0 },
-  ];
+  const salesTrendData = [{ name: 'Tue', sales: 0 }, { name: 'Wed', sales: 0 }, { name: 'Thu', sales: 0 }, { name: 'Fri', sales: 0 }, { name: 'Sat', sales: 0 }, { name: 'Sun', sales: 0 }, { name: 'Mon', sales: 0 }];
 
-  const recentSales = sales?.slice(-5).reverse() || [];
+  const recentSales = (sales || []).slice(-5).reverse();
+
+  function openDetail(sale) { setDetailSale(sale); setDetailOpen(true); }
+  function closeDetail() { setDetailSale(null); setDetailOpen(false); }
 
   return (
     <div className="dashboard">
-      {/* --- Header --- */}
       <div className="dashboard-header">
-        <div className="header-title">
-          <h1>Dashboard</h1>
-          <p>Welcome back! Here's your business overview.</p>
-        </div>
-        <div className="header-last-updated">
-          Last updated: {new Date().toLocaleTimeString()}
-        </div>
+        <div className="header-title"><h1>Dashboard</h1><p>Welcome back! Here's your business overview.</p></div>
+        <div className="header-last-updated">Last updated: {new Date().toLocaleTimeString()}</div>
       </div>
 
-      {/* --- Top Stat Cards --- */}
+      {/* Stat cards: staff sees fewer */}
       <div className="stat-card-grid">
-        <StatCard
-          title="Today's Sales"
-          value={todaySalesCount}
-          subValue={`$${todayRevenue.toFixed(2)} revenue`}
-          icon={<ShoppingCart size={20} />}
-          color="#8b5cf6"
-        />
-        <StatCard
-          title="Inventory"
-          value={allStocked}
-          subValue="All stocked"
-          icon={<Package size={20} />}
-          color="#8b5cf6"
-        />
-        <StatCard
-          title="Today's Profit"
-          value={`$${todayProfit.toFixed(2)}`}
-          subValue="$0.00 - $0.00"
-          icon={<TrendingUp size={20} />}
-          color="#10b981"
-        />
-        <StatCard
-          title="Outstanding Credit"
-          value={`$${outstandingCredit.toFixed(2)}`}
-          subValue={`${creditCustomers} customers`}
-          icon={<DollarSign size={20} />}
-          color="#f59e0b"
-        />
+        <div style={{ gridColumn: isAdmin ? undefined : 'span 1' }}>
+          <div className="card stat-card" style={{ ['--card-color']: '#00c4d2ff' }}>
+            <div className="stat-card-info"><span className="stat-title">Today's Sales</span><span className="stat-value">{todaySalesCount}</span><span className="stat-subvalue">transactions</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div className="card stat-card" style={{ ['--card-color']: '#8b5cf6' }}>
+            <div className="stat-card-info"><span className="stat-title">Inventory</span><span className="stat-value">{allStocked}</span><span className="stat-subvalue">All stocked</span></div>
+          </div>
+        </div>
+
+        {isAdmin && (
+          <>
+            <div>
+              <div className="card stat-card" style={{ ['--card-color']: '#10b981' }}>
+                <div className="stat-card-info"><span className="stat-title">Today's Profit</span><span className="stat-value">₨0.00</span><span className="stat-subvalue">$0.00 - $0.00</span></div>
+              </div>
+            </div>
+            <div>
+              <div className="card stat-card" style={{ ['--card-color']: '#f59e0b' }}>
+                <div className="stat-card-info"><span className="stat-title">Outstanding Credit</span><span className="stat-value">₨0.00</span><span className="stat-subvalue">0 customers</span></div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* --- Main Content Grid --- */}
       <div className="dashboard-main-grid">
-        {/* --- Left Column --- */}
         <div className="main-col-left">
-          <div className="card sales-trend-card">
-            <h2 className="card-title">Sales Trend (Last 7 Days)</h2>
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesTrendData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+          {isAdmin && (
+            <div className="card sales-trend-card">
+              <h2 className="card-title">Sales Trend (Last 7 Days)</h2>
+              <div className="chart-container">
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={salesTrendData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                    <YAxis axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="card recent-sales-card">
             <div className="card-header">
@@ -167,65 +147,73 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <ul className="sales-list">
-                  {recentSales.map((sale) => (
-                    <li key={sale.id} className="sales-list-item">
-                      <div className="sale-info">
-                        <span className="sale-customer">{sale.customerName || 'Walk-in'}</span>
-                        <span className="sale-date">{new Date(sale.date).toLocaleDateString()}</span>
-                      </div>
-                      <span className="sale-total">${sale.totalAmount.toFixed(2)}</span>
-                    </li>
-                  ))}
+                  {recentSales.map((sale) => {
+                    const total = Number(sale.totalAmount || sale.total_amount || 0) || 0;
+                    return (
+                      <li
+                        key={sale.id ?? sale.date}
+                        className="sales-list-item"
+                        onClick={() => openDetail(sale)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(sale); }}
+                        aria-label={`Open sale ${sale.id}`}
+                      >
+                        <div className="sale-info">
+                          <span className="sale-customer">{sale.customerName ?? 'Walk-in'}</span>
+                          <span className="sale-date">{new Date(sale.date).toLocaleDateString()}</span>
+                        </div>
+                        <span className="sale-total">{(isStaff && !isAdmin) ? '—' : `₨${total.toFixed(2)}`}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
           </div>
         </div>
 
-        {/* --- Right Column --- */}
-        <div className="main-col-right">
-          <div className="card payment-methods-card">
-            <h2 className="card-title">Payment Methods</h2>
-            <div className="empty-state-small">
-              <p>No payment data available</p>
+        {/* admin-only right column */}
+        {isAdmin && (
+          <div className="main-col-right">
+            <div className="card payment-methods-card">
+              <h2 className="card-title">Payment Methods</h2>
+              <div className="empty-state-small"><p>No payment data available</p></div>
             </div>
-          </div>
 
-          <div className="card business-summary-card">
-            <h2 className="card-title">Business Summary</h2>
-            <div className="card-content">
-              <SummaryItem
-                title="Weekly Revenue"
-                subtitle="0 sales"
-                value="$0.00"
-                icon={<BarChart size={20} />}
-                bgColor="#dbeafe"
-              />
-              <SummaryItem
-                title="Inventory Value"
-                subtitle={`${allStocked} products`}
-                value={`$${inventoryValue.toFixed(2)}`}
-                icon={<Briefcase size={20} />}
-                bgColor="#ede9fe"
-              />
-              <SummaryItem
-                title="Total Customers"
-                subtitle="0 with credit"
-                value={totalCustomers}
-                icon={<Users size={20} />}
-                bgColor="#fee2e2"
-              />
-              <SummaryItem
-                title="Monthly Revenue"
-                subtitle="0 sales"
-                value="$0.00"
-                icon={<PiggyBank size={20} />}
-                bgColor="#dcfce7"
-              />
+            <div className="card business-summary-card">
+              <h2 className="card-title">Business Summary</h2>
+              <div className="card-content">
+                <div className="summary-item">
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#dbeafe' }}><BarChart size={18} /></div>
+                  <div className="summary-text"><span className="summary-title">Weekly Revenue</span><span className="summary-subtitle">0 sales</span></div>
+                  <span className="summary-value">₨0.00</span>
+                </div>
+
+                <div className="summary-item">
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#ede9fe' }}><Briefcase size={18} /></div>
+                  <div className="summary-text"><span className="summary-title">Inventory Value</span><span className="summary-subtitle">{allStocked} products</span></div>
+                  <span className="summary-value">₨{inventoryValue.toFixed(2)}</span>
+                </div>
+
+                <div className="summary-item">
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#fee2e2' }}><Users size={18} /></div>
+                  <div className="summary-text"><span className="summary-title">Total Customers</span><span className="summary-subtitle">0 with credit</span></div>
+                  <span className="summary-value">{totalCustomers}</span>
+                </div>
+
+                <div className="summary-item">
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#dcfce7' }}><Wallet size={18} /></div>
+                  <div className="summary-text"><span className="summary-title">Monthly Revenue</span><span className="summary-subtitle">0 sales</span></div>
+                  <span className="summary-value">₨0.00</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      <SaleDetailModal isOpen={detailOpen} onClose={closeDetail} sale={detailSale} />
     </div>
   );
 }

@@ -367,3 +367,61 @@
   }
 }
 
+/* clickable sales row */
+.sale-row,
+.sales-list-item {
+  cursor: pointer;
+  outline: none;
+}
+.sale-row:focus,
+.sales-list-item:focus {
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
+  border-radius: 8px;
+}
+.sale-row:hover,
+.sales-list-item:hover {
+  background-color: #fbfdff;
+}
+
+/* modal detail small adjustments (use same classes used in sales) */
+.bill-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 20px;
+}
+.bill-modal-content {
+  width: 920px;
+  max-width: 96%;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(2,6,23,0.25);
+  display: flex;
+  flex-direction: column;
+}
+.bill-modal-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eef2f7;
+}
+.bill-modal-body {
+  padding: 18px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.bill-modal-actions {
+  padding: 14px 18px;
+  border-top: 1px solid #eef2f7;
+  display:flex;
+  justify-content:flex-end;
+  gap: 8px;
+}
+.sale-detail-modal .bill-table-wrapper { margin-top: 12px; }
+.detail-table th, .detail-table td { padding: 10px; border-bottom: 1px solid #f3f4f6; }
