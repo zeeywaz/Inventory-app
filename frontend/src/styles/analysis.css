@@ -1,0 +1,106 @@
+/* src/styles/analysis.css */
+
+.analysis-page {
+  padding: 24px;
+  background: #f7fafc;
+  color: #1f2937;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial;
+  box-sizing: border-box;
+}
+
+/* header */
+.analysis-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+.analysis-title h1 { font-size:2rem; margin:0; font-weight:800; color:#0f172a; }
+.analysis-sub { margin:6px 0 0; color:#6b7280; }
+
+/* range/buttons */
+.analysis-controls .range-buttons { display:flex; gap:12px; align-items:center; }
+.range-btn {
+  background: #fff; border: 1px solid #eef2f7; padding:8px 14px; border-radius:999px;
+  color:#475569; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(15,23,42,0.03);
+}
+.range-btn.active { background: linear-gradient(90deg,#7c3aed,#8b5cf6); color:#fff; box-shadow:0 10px 30px rgba(124,58,237,0.12); }
+
+/* stats */
+.analysis-stats-grid { display:grid; grid-template-columns: repeat(4,1fr); gap:18px; margin-top:18px; }
+.analysis-page .stat-card {
+  position: relative; display:flex; align-items:center; gap:18px;
+  padding:18px 20px; border-radius:12px; background:#fff; border:1px solid #eef2f6;
+  box-shadow: 0 6px 20px rgba(2,6,23,0.04); min-height:96px; overflow:visible;
+}
+/* stripe override (forces match to --card-color) */
+.analysis-page .stat-card::before {
+  content: ""; position:absolute; left:0; top:0; bottom:0; width:8px;
+  background: var(--card-color, transparent) !important; border-top-left-radius:12px; border-bottom-left-radius:12px;
+  z-index:0; transition: width 0.18s ease;
+}
+.analysis-page .stat-card:hover::before { width:10px; }
+.analysis-page .stat-card > * { position: relative; z-index: 1; }
+
+.analysis-page .stat-icon { width:54px; height:54px; border-radius:12px; display:grid; place-items:center; color:#fff !important; flex-shrink:0; box-shadow: 0 6px 20px rgba(2,6,23,0.06); opacity:1 !important; }
+.stat-body { display:flex; flex-direction:column; gap:6px; }
+.stat-title { font-size:0.95rem; color:#475569; font-weight:700; }
+.stat-amount { font-size:1.5rem; font-weight:800; color:#0b1220; margin-top:2px; }
+.stat-sub { font-size:0.9rem; color:#6b7280; }
+
+/* large area chart card */
+.card.large-chart-card { margin-top:22px; padding:18px; border-radius:12px; background:#fff; border:1px solid #eef2f6; box-shadow: 0 10px 30px rgba(2,6,23,0.04); }
+.card.large-chart-card .card-title { margin:0 0 12px 0; font-size:1.1rem; color:#0f172a; }
+
+/* profit card */
+.card.profit-card { margin-top:18px; padding:18px; border-radius:12px; background:#fff; border:1px solid #eef2f6; box-shadow: 0 8px 22px rgba(2,6,23,0.03); }
+
+/* bottom grid */
+.analysis-bottom-grid { display:grid; grid-template-columns: 1fr 360px; gap:18px; margin-top:18px; }
+.card.list-card { padding:0; border-radius:12px; overflow:hidden; }
+.card .card-title { padding:16px 18px; font-weight:700; }
+
+/* products list */
+.top-products { list-style:none; margin:0; padding:0; }
+.product-row { display:flex; justify-content:space-between; align-items:center; padding:12px 18px; border-bottom:1px solid #f3f6f9; }
+.product-row:last-child { border-bottom:none; }
+.prod-left { display:flex; gap:12px; align-items:center; }
+.prod-rank { width:36px; height:36px; display:grid; place-items:center; background:#f1f5f9; border-radius:8px; font-weight:700; color:#0f172a; }
+.prod-name { font-weight:700; color:#0f172a; }
+.prod-meta { color:#6b7280; font-size:0.9rem; }
+.prod-right { font-weight:700; color:#0f1720; }
+
+/* recent sales */
+.sales-history-card { margin-top:18px; }
+.recent-sales-list { display:flex; flex-direction:column; gap:8px; padding:12px 18px; }
+.recent-sale-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #f3f6f9; }
+.recent-sale-row:last-child { border-bottom:none; }
+.rs-left .rs-id { font-weight:700; color:#0f1720; }
+.rs-meta { color:#6b7280; font-size:0.9rem; }
+.rs-right { font-weight:700; color:#0f1720; }
+
+/* ======== TOP CATEGORIES CARD (LARGE & PROMINENT) ======== */
+.card.top-categories-card {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid #eef2f6;
+  box-shadow: 0 12px 30px rgba(2,6,23,0.04);
+}
+.top-categories-card .card-title { margin: 0 0 12px 0; font-size:1.1rem; color:#0f172a; }
+
+.top-categories-wrap {
+  display:flex; align-items:center; justify-content:center; padding: 6px 8px 0 8px; min-height: 360px;
+}
+
+/* increase legend item spacing and readability */
+.recharts-legend-item { margin-right: 14px !important; margin-left: 8px !important; }
+.recharts-default-tooltip { font-size:13px; }
+.recharts-pie-label { font-size:12px; fill:#0f172a; font-weight:600; }
+
+/* responsive */
+@media (max-width: 1100px) {
+  .analysis-stats-grid { grid-template-columns: repeat(2,1fr); }
+  .analysis-bottom-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .analysis-stats-grid { grid-template-columns: 1fr; }
+  .range-btn { padding: 8px 10px; }
+  .top-categories-wrap { min-height: 300px; }
+}

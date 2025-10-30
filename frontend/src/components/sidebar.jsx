@@ -89,8 +89,9 @@ export function Sidebar({ user: propUser, onLogout }) {
         {isAdmin && (
           <div className="nav-group">
             <span className="nav-group-title">System</span>
-            <NavLink to="/reports" icon={<BarChart size={18} />} text="Reports" />
+            <NavLink to="/analysis" icon={<BarChart size={18} />} text="Reports" />
             <NavLink to="/backups" icon={<DatabaseBackup size={18} />} text="Backups" />
+            <NavLink to="/settings" icon={<Settings size={18} />} text="Settings" />
           </div>
         )}
       </div>

@@ -17,6 +17,9 @@ import Suppliers from './pages/suppliers';
 import PurchaseOrders from './pages/purchaseorders';
 import Expenses from './pages/expenses';
 import AttendancePage from './pages/attendance';
+import Analysis from './pages/analysis';
+import BackupRestore from './pages/backup';
+import SettingsPage from './pages/settings';
 // ... import your other pages here as you build them ...
 
 /**
@@ -74,6 +77,9 @@ export default function App() {
               <Route path="/purchase-orders" element={<PurchaseOrders />} />
               <Route path="/expenses" element={<Expenses />} />
               <Route path="/attendance" element={<AttendancePage />} />
+              <Route path="/analysis" element={<Analysis />} />
+              <Route path="/backups" element={<BackupRestore />} />
+              <Route path="/settings" element={<SettingsPage />} />
               {/* When you're ready, add your other pages:
                 <Route path="/sales" element={<SalesPage />} />
                 <Route path="/products" element={<ProductsPage />} />
