@@ -55,8 +55,8 @@ export function Sidebar({ user: propUser, onLogout }) {
           <Settings size={24} />
         </div>
         <div className="brand">
-          <span className="brand-name">AutoMod IMS</span>
-          <span className="brand-sub">Inventory System</span>
+          <span className="brand-name">Modi-Act</span>
+          <span className="brand-sub"> Inventory System</span>
         </div>
       </div>
 
@@ -72,8 +72,8 @@ export function Sidebar({ user: propUser, onLogout }) {
 
         <div className="nav-group">
           <span className="nav-group-title">Inventory</span>
-          <NavLink to="/suppliers" icon={<Truck size={18} />} text="Suppliers" />
-          <NavLink to="/purchase-orders" icon={<FileText size={18} />} text="Purchase Orders" />
+          {isAdmin && <NavLink to="/suppliers" icon={<Truck size={18} />} text="Suppliers" />}
+          {isAdmin && <NavLink to="/purchase-orders" icon={<FileText size={18} />} text="Purchase Orders" />}
           <NavLink to="/expenses" icon={<DollarSign size={18} />} text="Expenses" />
         </div>
 

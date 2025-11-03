@@ -1,4 +1,9 @@
-/* inquiries.css - Prefixed with inq- (edited to use thin left accent stripe) */
+/* inquiries.css - Prefixed with inq- (edited to use thin left accent stripe)
+   UPDATED:
+   - Added .inq-advance-badge style for list view
+   - Added .inq-advance-detail for detail modal
+   - Added .inq-detail-row for modal consistency
+*/
 :root {
   --inq-bg: #f8f9fc; /* Slightly lighter background */
   --inq-card: #ffffff;
@@ -70,7 +75,7 @@
   color: white;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
-.inq-btn-primary:hover { background: #4f46e5; box-shadow: 0 4px 8px rgba(99,102,241,0.2); }
+.inq-btn-primary:hover { background: #4f46e5; box-shadow: 0 4px 8px rgba(99, 102, 241, 0.2); }
 .inq-btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; box-shadow: none; }
 
 .inq-btn-secondary {
@@ -179,6 +184,15 @@
 .inq-meta { display: flex; gap: 0.75rem; color: var(--inq-text-muted); font-size: 0.85rem; flex-wrap: wrap; }
 .inq-meta span { white-space: nowrap; }
 
+/* NEW Advance Badge */
+.inq-advance-badge {
+  color: var(--inq-green);
+  font-weight: 600;
+  background-color: #ecfdf5;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
 /* right section */
 .inq-right { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
 .inq-badge { padding: 0.3rem 0.7rem; border-radius: 999px; font-weight: 600; text-transform: capitalize; font-size: 0.75rem; border: 1px solid transparent; white-space: nowrap; }
@@ -210,12 +224,36 @@
 @keyframes inqModalSlideUp { to { transform: translateY(0); } }
 
 .inq-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--inq-border-color); flex-shrink: 0; }
-.inq-modal-header h3 { font-size: 1.15rem; font-weight: 600; margin: 0; color: var(--inq-text-primary); }
+.inq-modal-header h3 { font-size: 1.15rem; font-weight: 600; margin: 0; color: var(--inq-text-primary);}
 .inq-modal-body { padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; flex-grow: 1; }
-.inq-modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--inq-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--inq-bg); flex-shrink: 0; }
+.inq-modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--inq-border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: var(--inq-bg); flex-shrink: 0;}
+
+/* NEW Modal Detail Row */
+.inq-detail-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--inq-border-color);
+}
+.inq-detail-row:last-child { border-bottom: none; }
+.inq-detail-row strong { font-weight: 600; color: var(--inq-text-secondary); }
+.inq-notes {
+  background-color: var(--inq-bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+.inq-advance-detail {
+  font-weight: 600;
+  color: var(--inq-green);
+}
+
 
 /* Modal Form Fields */
-.inq-field { margin-bottom: 1rem; }
+.inq-field { margin-bottom: 1rem; flex: 1; }
 .inq-field-label { color: var(--inq-text-secondary); font-size: 0.8rem; font-weight: 500; margin-bottom: 0.4rem; display: block; text-transform: uppercase; letter-spacing: 0.02em; }
 .inq-field input, .inq-field textarea, .inq-field select {
   width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px;
@@ -228,8 +266,11 @@
   outline: none; border-color: var(--inq-blue);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
-.inq-row-fields { display: flex; gap: 1rem; }
-.inq-row-fields .inq-field { flex: 1; }
+.inq-row-fields { 
+  display: flex; 
+  gap: 1rem;
+  margin-bottom: -1rem; /* counteract child margin */
+}
 
 /* small helpers */
 /* responsive */
@@ -247,4 +288,5 @@
   .inq-right { flex-direction: row; justify-content: space-between; width: 100%; }
   .inq-modal-body { padding: 1rem; }
   .inq-row-fields { flex-direction: column; gap: 0; }
+  .inq-detail-row { grid-template-columns: 100px 1fr; }
 }

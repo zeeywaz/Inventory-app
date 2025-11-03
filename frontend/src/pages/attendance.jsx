@@ -49,20 +49,28 @@ const X = ({ className = "icon icon-md" }) => (
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
 );
+const DollarSign = ({ className = "icon icon-md" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="12" y1="1" x2="12" y2="23"></line>
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+  </svg>
+);
+
 
 /* ---------- Mock initial employees ---------- */
 const INITIAL_EMPLOYEES = [
-  { id: "emp1", name: "Alice Smith", department: "Engineering", employeeId: "E1001" },
-  { id: "emp2", name: "Bob Johnson", department: "Marketing", employeeId: "E1002" },
-  { id: "emp3", name: "Charlie Lee", department: "HR", employeeId: "E1003" },
+  { id: "emp1", name: "Alice Smith", department: "Engineering", employeeId: "E1001", dailySalary: 3000 },
+  { id: "emp2", name: "Bob Johnson", department: "Marketing", employeeId: "E1002", dailySalary: 2500 },
+  { id: "emp3", name: "Charlie Lee", department: "HR", employeeId: "E1003", dailySalary: 2200 },
 ];
 
 /* ---------- Small helpers ---------- */
 const todayISO = (d = new Date()) => d.toISOString().split("T")[0];
 const formatDateDisplay = (iso) => {
   try {
-    const d = new Date(iso);
-    return d.toLocaleDateString();
+    const d = new Date(iso.replace(/-/g, '/')); // Safer date parsing
+    return d.toLocaleDateString('en-LK', { year: 'numeric', month: 'long', day: 'numeric' });
   } catch {
     return iso;
   }
@@ -70,13 +78,17 @@ const formatDateDisplay = (iso) => {
 const initials = (name = "") =>
   name.split(" ").map(n => n[0] || "").slice(0,2).join("").toUpperCase();
 
+const formatCurrency = (amount) => `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+
 /* =========================
    Main Attendance Page
    ========================= */
 export default function AttendancePage() {
   // state
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
-  const [attendance, setAttendance] = useState([]); // array of { id, date, employeeId, status }
+  // UPDATED attendance structure
+  const [attendance, setAttendance] = useState([]); // array of { id, date, employeeId, status, payout }
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [isAttendanceModalOpen, setAttendanceModalOpen] = useState(false);
@@ -89,7 +101,8 @@ export default function AttendancePage() {
   const attendedEmployees = useMemo(() =>
     todaysRecords.map(r => {
       const emp = employees.find(e => e.id === r.employeeId);
-      return emp ? { ...emp, status: r.status } : null;
+      // Pass the recorded payout, not the default salary
+      return emp ? { ...emp, status: r.status, payout: r.payout } : null;
     }).filter(Boolean),
     [todaysRecords, employees]
   );
@@ -98,14 +111,19 @@ export default function AttendancePage() {
   const absentCount = attendedEmployees.filter(e => e.status === "Absent").length;
   const presentPercent = employees.length ? Math.round((presentCount / employees.length) * 100) : 0;
 
+  // UPDATED: Calculate total payout from the day's records
+  const totalPayoutToday = useMemo(() => {
+    return todaysRecords.reduce((acc, record) => {
+      // Only sum payout if they were marked present
+      return record.status === "Present" ? acc + record.payout : acc;
+    }, 0);
+  }, [todaysRecords]);
+
   const filteredEmployees = employees.filter(e =>
     (e.name + " " + e.department + " " + e.employeeId).toLowerCase().includes(query.toLowerCase())
   );
 
-  // stats placeholders (you can replace with real logic)
   const activeStaffCount = employees.length;
-  const daysThisMonth = "0 Days";
-  const avgHoursDay = "0.00 hrs";
 
   /* ---------- Employee CRUD ---------- */
   function openAddEmployee() {
@@ -121,11 +139,15 @@ export default function AttendancePage() {
     setEmployeeModalOpen(false);
   }
   function saveEmployee(data) {
+    const employeeData = {
+      ...data,
+      dailySalary: Number(data.dailySalary) || 0 
+    };
     if (editingEmployee) {
-      setEmployees(prev => prev.map(p => p.id === editingEmployee.id ? { ...p, ...data } : p));
+      setEmployees(prev => prev.map(p => p.id === editingEmployee.id ? { ...p, ...employeeData } : p));
     } else {
       const id = `emp${Date.now()}`;
-      setEmployees(prev => [{ id, ...data }, ...prev]);
+      setEmployees(prev => [{ id, ...employeeData }, ...prev]);
     }
     closeEmployeeModal();
   }
@@ -135,7 +157,7 @@ export default function AttendancePage() {
     setAttendance(prev => prev.filter(a => a.employeeId !== id));
   }
 
-  /* ---------- Attendance handling ---------- */
+  /* ---------- Attendance handling (UPDATED) ---------- */
   function openAttendanceModal() {
     setAttendanceModalOpen(true);
   }
@@ -143,14 +165,17 @@ export default function AttendancePage() {
     setAttendanceModalOpen(false);
   }
   function submitAttendance(attMap) {
-    // attMap: { employeeId: 'Present'|'Absent' }
+    // attMap: { employeeId: { status: 'Present'|'Absent', payout: number } }
     const others = attendance.filter(r => r.date !== selectedDate);
-    const newRecords = Object.entries(attMap).map(([employeeId, status], idx) => ({
+    
+    const newRecords = Object.entries(attMap).map(([employeeId, data], idx) => ({
       id: `att${Date.now()}${idx}${employeeId}`,
       date: selectedDate,
       employeeId,
-      status,
+      status: data.status,
+      payout: data.status === 'Present' ? Number(data.payout) : 0, // Ensure payout is 0 if absent
     }));
+    
     setAttendance([...others, ...newRecords]);
     closeAttendanceModal();
   }
@@ -188,12 +213,13 @@ export default function AttendancePage() {
 
         {/* Stats */}
         <section className="am-stats" aria-hidden={false}>
-          <StatCard title="Active Staff" value={activeStaffCount} color="var(--am-accent)" />
-          <StatCard title="Present" value={presentCount} sub={`${presentPercent}% of staff`} color="var(--am-green)" />
-          <StatCard title="Absent" value={absentCount} color="var(--am-red)" />
+          <StatCard title="Active Staff" value={activeStaffCount} color="var(--am-accent)" icon={<CalendarDays />} />
+          <StatCard title="Present" value={presentCount} sub={`${presentPercent}% of staff`} color="var(--am-green)" icon={<CheckCircle2 />} />
+          <StatCard title="Absent" value={absentCount} color="var(--am-red)" icon={<X />} />
+          <StatCard title="Total Payout" value={formatCurrency(totalPayoutToday)} sub="For present staff" color="#f59e0b" icon={<DollarSign />} />
         </section>
 
-        {/* Main layout: left large column + right sidebar */}
+        {/* Main layout */}
         <section className="am-main-grid" aria-live="polite">
           <div className="am-left-card card" role="region" aria-label="Daily attendance list">
             <div className="am-card-head">
@@ -211,7 +237,8 @@ export default function AttendancePage() {
                   placeholder="Search staff, id or dept..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--am-border)" }}
+                  className="input"
+                  style={{ padding: "8px 10px" }}
                   aria-label="Search employees"
                 />
               </div>
@@ -274,14 +301,15 @@ export default function AttendancePage() {
    Reusable & Subcomponents
    ========================= */
 
-function StatCard({ title, value, sub, color = "var(--am-accent)" }) {
+function StatCard({ title, value, sub, color = "var(--am-accent)", icon }) {
   return (
     <div className="stat-card card" style={{ ['--card-color']: color }}>
       <div className="stat-info">
         <div className="stat-title">{title}</div>
         <div className="stat-value">{value}</div>
-        {sub && <div style={{ color: "var(--am-muted)", fontSize: 13 }}>{sub}</div>}
+        {sub && <div className="stat-sub">{sub}</div>}
       </div>
+      {icon && <div className="stat-icon">{React.cloneElement(icon, { className: "icon icon-md" })}</div>}
     </div>
   );
 }
@@ -306,6 +334,7 @@ function AttendanceList({ employees }) {
           <tr>
             <th>Employee</th>
             <th>Employee ID</th>
+            <th className="mono">Day's Payout</th> {/* UPDATED Header */}
             <th style={{ width: 120 }}>Status</th>
           </tr>
         </thead>
@@ -314,10 +343,7 @@ function AttendanceList({ employees }) {
             <tr key={emp.id}>
               <td>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center",
-                    background: "#f8fafc", color: "var(--am-accent)", fontWeight: 800
-                  }}>
+                  <div className="avatar">
                     {initials(emp.name)}
                   </div>
                   <div>
@@ -327,6 +353,7 @@ function AttendanceList({ employees }) {
                 </div>
               </td>
               <td className="mono">{emp.employeeId}</td>
+              <td className="mono">{formatCurrency(emp.payout)}</td> {/* UPDATED Value */}
               <td>
                 <span className={`pill ${emp.status === "Present" ? "pill-present" : "pill-absent"}`}>
                   {emp.status}
@@ -343,19 +370,16 @@ function AttendanceList({ employees }) {
 function EmployeeList({ employees, onEdit, onDelete }) {
   return (
     <div className="employee-list" aria-live="polite">
-      {employees.length === 0 && <div className="note">No employees added yet.</div>}
+      {employees.length === 0 && <div className="note">No employees found.</div>}
       {employees.map(emp => (
         <div key={emp.id} className="employee-row" role="listitem">
-          <div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 10, display: "grid", placeItems: "center",
-                background: "#fbfbff", color: "var(--am-accent)", fontWeight: 800
-              }}>{initials(emp.name)}</div>
-              <div>
-                <div className="emp-name">{emp.name}</div>
-                <div className="emp-meta">{emp.employeeId} · {emp.department}</div>
-              </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+             <div className="avatar-small">
+              {initials(emp.name)}
+            </div>
+            <div>
+              <div className="emp-name">{emp.name}</div>
+              <div className="emp-meta">{emp.employeeId} · {emp.department} · {formatCurrency(emp.dailySalary)}/day</div>
             </div>
           </div>
 
@@ -396,6 +420,7 @@ function EmployeeModal({ employee, onClose, onSave }) {
     name: employee?.name || "",
     department: employee?.department || "",
     employeeId: employee?.employeeId || "",
+    dailySalary: employee?.dailySalary || 0,
   });
   const [error, setError] = useState("");
 
@@ -404,6 +429,7 @@ function EmployeeModal({ employee, onClose, onSave }) {
       name: employee?.name || "",
       department: employee?.department || "",
       employeeId: employee?.employeeId || "",
+      dailySalary: employee?.dailySalary || 0,
     });
     setError("");
   }, [employee]);
@@ -429,13 +455,28 @@ function EmployeeModal({ employee, onClose, onSave }) {
           <div className="label">Full name</div>
           <input name="name" value={form.name} onChange={change} className="input" autoFocus />
         </label>
+        
+        <div className="form-row">
+          <label className="field">
+            <div className="label">Department</div>
+            <input name="department" value={form.department} onChange={change} className="input" />
+          </label>
+          <label className="field">
+            <div className="label">Employee ID</div>
+            <input name="employeeId" value={form.employeeId} onChange={change} className="input" />
+          </label>
+        </div>
+        
         <label className="field">
-          <div className="label">Department</div>
-          <input name="department" value={form.department} onChange={change} className="input" />
-        </label>
-        <label className="field">
-          <div className="label">Employee ID</div>
-          <input name="employeeId" value={form.employeeId} onChange={change} className="input" />
+          <div className="label">Default Daily Salary (₨)</div>
+          <input 
+            name="dailySalary" 
+            type="number" 
+            value={form.dailySalary} 
+            onChange={change} 
+            className="input" 
+            placeholder="e.g. 2500"
+          />
         </label>
 
         {error && <div className="note" style={{ color: "var(--am-red)" }}>{error}</div>}
@@ -449,33 +490,76 @@ function EmployeeModal({ employee, onClose, onSave }) {
   );
 }
 
-/* ---------- Attendance modal ---------- */
+/* ---------- Attendance modal (UPDATED) ---------- */
 function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, onSubmit }) {
-  // initialize map from todaysAttendance
-  const buildInitialMap = () => {
-    const map = {};
-    employees.forEach(emp => {
-      const rec = todaysAttendance.find(r => r.employeeId === emp.id);
-      map[emp.id] = rec?.status || "Absent";
-    });
-    return map;
-  };
-
-  const [map, setMap] = useState(buildInitialMap);
+  
+  // UPDATED: State now holds an object with status and payout
+  const [map, setMap] = useState({});
 
   useEffect(() => {
+    // This function now runs when the modal opens or deps change
+    const buildInitialMap = () => {
+      const newMap = {};
+      employees.forEach(emp => {
+        const rec = todaysAttendance.find(r => r.employeeId === emp.id);
+        if (rec) {
+          // Found an existing record for this day
+          newMap[emp.id] = { status: rec.status, payout: rec.payout };
+        } else {
+          // No record, use default salary and mark as Absent
+          newMap[emp.id] = { status: "Absent", payout: emp.dailySalary || 0 };
+        }
+      });
+      return newMap;
+    };
     setMap(buildInitialMap());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, selectedDate, JSON.stringify(todaysAttendance)]);
+  }, [employees, todaysAttendance, selectedDate, onClose]); // Re-build map when modal is opened
 
-  function setStatus(id, status) {
-    setMap(prev => ({ ...prev, [id]: status }));
+  function handleStatusChange(id, status) {
+    setMap(prev => {
+      const newPayout = status === 'Absent' 
+        ? 0 
+        : (employees.find(e => e.id === id)?.dailySalary || 0); // Reset to default on "Present"
+        
+      // If we are marking as present, check if there was a previous payout recorded today
+      const existingRecord = todaysAttendance.find(r => r.employeeId === id);
+      const payoutToUse = status === 'Present' 
+        ? (existingRecord ? existingRecord.payout : newPayout) // Use recorded or default
+        : 0; // 0 if absent
+
+      return {
+        ...prev,
+        [id]: { 
+          ...prev[id], 
+          status: status,
+          payout: payoutToUse
+        }
+      };
+    });
+  }
+  
+  function handlePayoutChange(id, payout) {
+    // Only allow changing payout if status is 'Present'
+    setMap(prev => {
+      if (prev[id].status === 'Present') {
+        return {
+          ...prev,
+          [id]: { ...prev[id], payout: payout }
+        };
+      }
+      return prev; // Don't change payout if absent
+    });
   }
 
   function setAll(status) {
-    const next = {};
-    employees.forEach(e => next[e.id] = status);
-    setMap(next);
+    setMap(prev => {
+      const next = {};
+      employees.forEach(e => {
+        const newPayout = status === 'Present' ? (e.dailySalary || 0) : 0;
+        next[e.id] = { status: status, payout: newPayout };
+      });
+      return next;
+    });
   }
 
   function submit(e) {
@@ -483,7 +567,7 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
     onSubmit(map);
   }
 
-  const present = Object.values(map).filter(v => v === "Present").length;
+  const present = Object.values(map).filter(v => v.status === "Present").length;
 
   return (
     <Modal title={`Mark Attendance — ${formatDateDisplay(selectedDate)}`} onClose={onClose}>
@@ -497,37 +581,59 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
         </div>
 
         <div className="attendance-list" role="list">
-          {employees.map(emp => (
-            <div key={emp.id} className="attendance-row" role="listitem" aria-label={`Attendance for ${emp.name}`}>
-              <div>
-                <div className="emp-name">{emp.name}</div>
-                <div className="emp-meta">{emp.employeeId}</div>
-              </div>
+          {employees.map(emp => {
+            const entry = map[emp.id] || { status: 'Absent', payout: 0 };
+            return (
+              <div key={emp.id} className="attendance-row" role="listitem" aria-label={`Attendance for ${emp.name}`}>
+                <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
+                  <div className="avatar-small">
+                    {initials(emp.name)}
+                  </div>
+                  <div>
+                    <div className="emp-name">{emp.name}</div>
+                    <div className="emp-meta">{emp.employeeId}</div>
+                  </div>
+                </div>
 
-              <div className="attendance-controls" role="radiogroup" aria-label={`Status for ${emp.name}`}>
-                <label className="radio" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="radio"
-                    name={`status-${emp.id}`}
-                    checked={map[emp.id] === "Present"}
-                    onChange={() => setStatus(emp.id, "Present")}
-                    aria-checked={map[emp.id] === "Present"}
-                  />
-                  <span>Present</span>
-                </label>
-                <label className="radio" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="radio"
-                    name={`status-${emp.id}`}
-                    checked={map[emp.id] === "Absent"}
-                    onChange={() => setStatus(emp.id, "Absent")}
-                    aria-checked={map[emp.id] === "Absent"}
-                  />
-                  <span>Absent</span>
-                </label>
+                <div className="attendance-controls" role="radiogroup" aria-label={`Status for ${emp.name}`}>
+                  {/* Payout Input Field */}
+                  <div className="payout-input-wrapper">
+                    <span className="payout-currency">₨</span>
+                    <input
+                      type="number"
+                      value={entry.payout}
+                      onChange={(e) => handlePayoutChange(emp.id, e.target.value)}
+                      disabled={entry.status === 'Absent'}
+                      className="attendance-payout-input"
+                      aria-label={`Payout for ${emp.name}`}
+                    />
+                  </div>
+                  
+                  {/* Radio Buttons */}
+                  <label className="radio" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name={`status-${emp.id}`}
+                      checked={entry.status === "Present"}
+                      onChange={() => handleStatusChange(emp.id, "Present")}
+                      aria-checked={entry.status === "Present"}
+                    />
+                    <span>Present</span>
+                  </label>
+                  <label className="radio" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name={`status-${emp.id}`}
+                      checked={entry.status === "Absent"}
+                      onChange={() => handleStatusChange(emp.id, "Absent")}
+                      aria-checked={entry.status === "Absent"}
+                    />
+                    <span>Absent</span>
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>

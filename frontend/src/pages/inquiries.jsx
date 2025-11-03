@@ -15,22 +15,28 @@ import {
 } from 'lucide-react';
 
 /**
- * Minimal Inquiry shape expected:
+ * UPDATED Inquiry shape expected:
  * {
- *   id,
- *   product_name,
- *   sku,
- *   customer_name,
- *   phone,
- *   notes,
- *   status: 'new' | 'in_progress' | 'completed',
- *   created_at,
- *   assigned_to,
+ * id,
+ * product_name,
+ * sku,
+ * customer_name,
+ * phone,
+ * notes,
+ * status: 'new' | 'in_progress' | 'completed',
+ * created_at,
+ * assigned_to,
+ * advance_payment: number (NEW)
  * }
  */
 
+// NEW currency formatter
+const formatCurrency = (amount) => `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+
 /* --- Small stat card --- */
 function Stat({ title, value, colorClass }) {
+  // Using the new ::before stripe styling from the CSS
   return (
     <div className={`inq-stat ${colorClass || ''}`}>
       <div className="inq-stat-title">{title}</div>
@@ -39,7 +45,7 @@ function Stat({ title, value, colorClass }) {
   );
 }
 
-/* --- Modal: Create / Edit Inquiry --- */
+/* --- Modal: Create / Edit Inquiry (UPDATED) --- */
 function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
   const [form, setForm] = useState({
     product_name: '',
@@ -48,6 +54,7 @@ function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
     phone: '',
     notes: '',
     status: 'new',
+    advance_payment: '', // NEW field
   });
 
   useEffect(() => {
@@ -59,6 +66,7 @@ function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
         phone: inquiry.phone || '',
         notes: inquiry.notes || '',
         status: inquiry.status || 'new',
+        advance_payment: inquiry.advance_payment || '', // NEW field
       });
     } else {
       setForm({
@@ -68,6 +76,7 @@ function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
         phone: '',
         notes: '',
         status: 'new',
+        advance_payment: '', // NEW field
       });
     }
   }, [inquiry, open]);
@@ -79,11 +88,15 @@ function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
   }
 
   function save() {
-    if (!form.product_name.trim()) return alert('Please enter a product name or SKU.');
+    if (!form.product_name.trim() && !form.sku.trim()) {
+       alert('Please enter a product name or SKU.');
+       return;
+    }
     // pass back the payload
     onSave({
       ...form,
       status: form.status || 'new',
+      advance_payment: Number(form.advance_payment) || 0, // NEW: ensure number
     });
   }
 
@@ -96,56 +109,70 @@ function InquiryModal({ open, onClose, inquiry = null, onSave, isAdmin }) {
         </header>
 
         <div className="inq-modal-body">
-          <label className="inq-field">
-            <div className="inq-field-label">Product name</div>
-            <input value={form.product_name} onChange={updateField('product_name')} placeholder="e.g. Engine Oil" />
-          </label>
-
-          <div className="inq-row">
+          <div className="inq-row-fields">
+            <label className="inq-field">
+              <div className="inq-field-label">Product name</div>
+              <input value={form.product_name} onChange={updateField('product_name')} placeholder="e.g. Engine Oil" />
+            </label>
             <label className="inq-field">
               <div className="inq-field-label">SKU</div>
               <input value={form.sku} onChange={updateField('sku')} placeholder="Optional SKU" />
             </label>
-
+          </div>
+          
+          <div className="inq-row-fields">
             <label className="inq-field">
               <div className="inq-field-label">Customer name</div>
               <input value={form.customer_name} onChange={updateField('customer_name')} placeholder="Customer name (optional)" />
             </label>
+            <label className="inq-field">
+              <div className="inq-field-label">Phone</div>
+              <input value={form.phone} onChange={updateField('phone')} placeholder="+94 77 123 4567" />
+            </label>
           </div>
-
-          <label className="inq-field">
-            <div className="inq-field-label">Phone</div>
-            <input value={form.phone} onChange={updateField('phone')} placeholder="+94 77 123 4567" />
-          </label>
 
           <label className="inq-field">
             <div className="inq-field-label">Notes</div>
             <textarea value={form.notes} onChange={updateField('notes')} placeholder="Customer request or note..." rows={4} />
           </label>
 
-          {/* Admin can change status when editing */}
-          {inquiry && isAdmin && (
+          {/* UPDATED Row for Status and Advance */}
+          <div className="inq-row-fields">
+            {/* Admin can change status when editing */}
+            {(inquiry || isAdmin) && (
+              <label className="inq-field">
+                <div className="inq-field-label">Status</div>
+                <select value={form.status} onChange={updateField('status')} disabled={!isAdmin && !!inquiry}>
+                  <option value="new">New</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </label>
+            )}
+
+            {/* NEW Advance Payment Field */}
             <label className="inq-field">
-              <div className="inq-field-label">Status</div>
-              <select value={form.status} onChange={updateField('status')}>
-                <option value="new">New</option>
-                <option value="in_progress">In progress</option>
-                <option value="completed">Completed</option>
-              </select>
+              <div className="inq-field-label">Advance Payment (₨)</div>
+              <input 
+                type="number"
+                value={form.advance_payment} 
+                onChange={updateField('advance_payment')} 
+                placeholder="e.g. 5000" 
+              />
             </label>
-          )}
+          </div>
         </div>
 
         <footer className="inq-modal-footer">
-          <button className="btn-muted" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={save}>{inquiry ? 'Save changes' : 'Create inquiry'}</button>
+          <button className="inq-btn inq-btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="inq-btn inq-btn-primary" onClick={save}>{inquiry ? 'Save changes' : 'Create inquiry'}</button>
         </footer>
       </div>
     </div>
   );
 }
 
-/* --- Modal: View Inquiry Details --- */
+/* --- Modal: View Inquiry Details (UPDATED) --- */
 function InquiryDetailModal({ open, onClose, inquiry }) {
   if (!open || !inquiry) return null;
 
@@ -173,6 +200,11 @@ function InquiryDetailModal({ open, onClose, inquiry }) {
           <div className="inq-detail-row">
             <strong>Status:</strong> <span className={`inq-badge ${inquiry.status}`}>{inquiry.status}</span>
           </div>
+          {/* NEW Advance Payment Row */}
+          <div className="inq-detail-row">
+            <strong>Advance Payment:</strong> 
+            <span className="inq-advance-detail">{formatCurrency(inquiry.advance_payment)}</span>
+          </div>
           <div className="inq-detail-row">
             <strong>Notes:</strong>
             <div className="inq-notes">{inquiry.notes || '—'}</div>
@@ -180,7 +212,7 @@ function InquiryDetailModal({ open, onClose, inquiry }) {
         </div>
 
         <footer className="inq-modal-footer">
-          <button className="btn-primary" onClick={onClose}>Close</button>
+          <button className="inq-btn inq-btn-primary" onClick={onClose}>Close</button>
         </footer>
       </div>
     </div>
@@ -239,13 +271,11 @@ export default function InquiriesPage() {
     if (typeof createInquiry === 'function') {
       try {
         await createInquiry(payload);
-        // context should refresh list; fallback: do nothing
       } catch (err) {
         console.error(err);
         alert('Create failed — check console');
       }
     } else {
-      // fallback local addition for UI feedback
       setList(prev => [done, ...prev]);
       alert('Inquiry created (mock).');
     }
@@ -298,7 +328,7 @@ export default function InquiriesPage() {
         </div>
 
         <div className="inq-actions">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> New Inquiry</button>
+          <button className="inq-btn inq-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> New Inquiry</button>
         </div>
       </div>
 
@@ -311,8 +341,8 @@ export default function InquiriesPage() {
 
       <div className="inq-controls">
         <div className="inq-filter">
-          <label>Filter by Status:</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <label htmlFor="status-filter">Filter by Status:</label>
+          <select id="status-filter" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="all">All Inquiries</option>
             <option value="new">New</option>
             <option value="in_progress">In progress</option>
@@ -322,7 +352,12 @@ export default function InquiriesPage() {
 
         <div className="inq-search">
           <Search size={18} className="inq-search-icon" />
-          <input placeholder="Search product, sku, customer or notes..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input 
+            placeholder="Search product, sku, customer or notes..." 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            aria-label="Search inquiries"
+          />
         </div>
       </div>
 
@@ -336,18 +371,21 @@ export default function InquiriesPage() {
             <div className="inq-empty">
               <MessageSquare size={48} />
               <p>No inquiries found</p>
-              <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> Add Your First Inquiry</button>
+              <button className="inq-btn inq-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> Add Your First Inquiry</button>
             </div>
           ) : (
             <div className="inq-rows">
               {visible.map((i) => (
                 <div key={i.id} className="inq-row">
                   <div className="inq-left">
-                    <div className="inq-title">{i.product_name}</div>
+                    <div className="inq-title">{i.product_name} {i.sku ? `(${i.sku})` : ''}</div>
                     <div className="inq-meta">
-                      <span className="inq-sku">{i.sku || '—'}</span>
-                      <span className="inq-customer">{i.customer_name ? `— ${i.customer_name}` : ''}</span>
-                      <span className="inq-date">{new Date(i.created_at).toLocaleString()}</span>
+                      <span>{i.customer_name || 'Walk-in'}</span>
+                      <span>{new Date(i.created_at).toLocaleString()}</span>
+                      {/* NEW Advance Display */}
+                      {i.advance_payment > 0 && (
+                        <span className="inq-advance-badge">{formatCurrency(i.advance_payment)} Advance</span>
+                      )}
                     </div>
                   </div>
 

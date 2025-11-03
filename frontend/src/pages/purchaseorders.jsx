@@ -1,7 +1,7 @@
 // src/pages/purchaseorders.jsx
 import React, { useMemo, useState, useEffect } from 'react';
 import '../styles/purchaseorders.css';
-import { Plus, ClipboardList, X, Trash2 } from 'lucide-react';
+import { Plus, ClipboardList, X, Trash2, Edit } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -14,11 +14,27 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled', color: '#dc2626' },
 ];
 
+// NEW Payment Status Options
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'unpaid', label: 'Unpaid', color: '#ef4444' },
+  { value: 'partial', label: 'Partial', color: '#f59e0b' },
+  { value: 'paid', label: 'Paid', color: '#10b981' },
+];
+
 function statusMeta(status) {
   return STATUS_OPTIONS.find((s) => s.value === status) || { label: status, color: '#6b7280' };
 }
 
-/* ---------------- CreatePOModal ---------------- */
+// NEW helper for payment status
+function paymentStatusMeta(status) {
+  return PAYMENT_STATUS_OPTIONS.find((s) => s.value === status) || { label: status, color: '#6b7280' };
+}
+
+// NEW currency formatter
+const formatCurrency = (amount) => `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+
+/* ---------------- CreatePOModal (UPDATED) ---------------- */
 function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave }) {
   const [supplierId, setSupplierId] = useState('');
   const [orderRef, setOrderRef] = useState('');
@@ -27,6 +43,11 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsVisible, setSearchResultsVisible] = useState(false);
   const [lines, setLines] = useState([]); // { productId, name, sku, qty, unitPrice }
+  
+  // NEW Payment Fields
+  const [amountPaid, setAmountPaid] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('unpaid');
+  
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -39,11 +60,20 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
       setSearchResultsVisible(false);
       setLines([]);
       setError('');
+      setAmountPaid(''); // Reset
+      setPaymentStatus('unpaid'); // Reset
     } else {
       // generate orderRef
       setOrderRef('PO-' + Date.now().toString().slice(-6));
     }
   }, [isOpen]);
+
+  // Calculate total amount from lines
+  const totalAmount = useMemo(() => {
+    return lines.reduce((acc, line) => {
+      return acc + (Number(line.qty || 0) * Number(line.unitPrice || 0));
+    }, 0);
+  }, [lines]);
 
   const typedSearch = (products || []).filter((p) => {
     const q = (searchTerm || '').trim().toLowerCase();
@@ -69,7 +99,7 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
         name: product.name || 'Unnamed',
         sku: product.sku || '',
         qty: 1,
-        unitPrice: Number(product.sellingPrice ?? product.selling_price ?? 0) || 0,
+        unitPrice: Number(product.costPrice ?? product.cost_price ?? 0) || 0, // Use costPrice
       },
     ]);
   }
@@ -95,6 +125,19 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
       if (!l.qty || Number(l.qty) <= 0) { setError('Quantity must be at least 1 for all lines.'); return; }
       if (l.unitPrice === '' || Number(l.unitPrice) < 0) { setError('Enter valid unit prices.'); return; }
     }
+    
+    const paid = Number(amountPaid) || 0;
+    
+    // Auto-update payment status based on amount paid
+    let finalPaymentStatus = paymentStatus;
+    if (paid <= 0) {
+      finalPaymentStatus = 'unpaid';
+    } else if (paid >= totalAmount) {
+      finalPaymentStatus = 'paid';
+    } else {
+      finalPaymentStatus = 'partial';
+    }
+
     // construct payload
     const payload = {
       ref: orderRef,
@@ -104,6 +147,10 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
       lines: lines.map((l) => ({ product_id: l.productId, qty: Number(l.qty), unit_price: Number(l.unitPrice) })),
       status: 'placed',
       created_at: new Date().toISOString(),
+      // NEW payment fields
+      total_amount: totalAmount,
+      amount_paid: paid,
+      payment_status: finalPaymentStatus,
     };
     if (typeof onSave === 'function') onSave(payload);
     onClose();
@@ -138,6 +185,32 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
               <input className="po-small-input" type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
             </div>
           </div>
+          
+          {/* NEW Payment Row */}
+          <div className="po-row">
+            <div className="po-field">
+              <label className="po-field-label">Amount Paid (Initial)</label>
+              <input 
+                className="po-small-input" 
+                type="number"
+                placeholder="0.00"
+                value={amountPaid} 
+                onChange={(e) => setAmountPaid(e.target.value)} 
+              />
+            </div>
+             <div className="po-field">
+              <label className="po-field-label">Payment Status</label>
+              <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} className="po-small-input">
+                 {PAYMENT_STATUS_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                 ))}
+              </select>
+            </div>
+            <div className="po-field">
+              <label className="po-field-label">Total Order Value</label>
+              <input className="po-small-input" value={formatCurrency(totalAmount)} disabled readOnly />
+            </div>
+          </div>
 
           <div style={{ marginTop: 8 }}>
             <label className="po-field-label">Notes (optional)</label>
@@ -160,7 +233,7 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
                   {typedSearch.map((p) => (
                     <li key={p.id} onClick={() => addProductLine(p)} className="po-search-item" role="option">
                       <div style={{ fontWeight: 700, color: 'var(--po-text-primary)' }}>{p.name}</div>
-                      <div className="small" style={{ color: 'var(--po-text-muted)' }}>{p.sku ? `SKU: ${p.sku}` : ''} — Price: ₨{(p.sellingPrice ?? p.selling_price ?? 0).toFixed(2)}</div>
+                      <div className="small" style={{ color: 'var(--po-text-muted)' }}>{p.sku ? `SKU: ${p.sku}` : ''} — Cost: {formatCurrency(p.costPrice ?? p.cost_price)}</div>
                     </li>
                   ))}
                 </ul>
@@ -183,7 +256,7 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
                   <tr>
                     <th>Product</th>
                     <th>SKU</th>
-                    <th style={{ width: 120 }}>Unit Price</th>
+                    <th style={{ width: 120 }}>Unit Cost</th>
                     <th style={{ width: 120 }}>Qty</th>
                     <th style={{ width: 120 }}>Line Total</th>
                     <th style={{ width: 80 }}></th>
@@ -217,7 +290,7 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
                           onChange={(e) => updateLine(idx, { qty: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value || 1)) })}
                         />
                       </td>
-                      <td>₨{(Number(l.unitPrice || 0) * Number(l.qty || 0)).toFixed(2)}</td>
+                      <td>{formatCurrency(Number(l.unitPrice || 0) * Number(l.qty || 0))}</td>
                       <td>
                         <button className="icon-btn danger" onClick={() => removeLine(idx)} title="Remove line"><Trash2 size={16} /></button>
                       </td>
@@ -240,14 +313,28 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave 
   );
 }
 
-/* ---------------- PO Detail Modal ---------------- */
-function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {}, userRole = 'staff' }) {
+/* ---------------- PO Detail Modal (UPDATED) ---------------- */
+function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, onUpdatePayment, productsById = {}, userRole = 'staff' }) {
   const [localStatus, setLocalStatus] = useState(po?.status || '');
+  // NEW Local state for payment
+  const [paymentStatus, setPaymentStatus] = useState(po?.payment_status || 'unpaid');
+  const [amountPaid, setAmountPaid] = useState(po?.amount_paid || 0);
 
-  useEffect(() => setLocalStatus(po?.status || ''), [po]);
+  useEffect(() => {
+    setLocalStatus(po?.status || '');
+    setPaymentStatus(po?.payment_status || 'unpaid');
+    setAmountPaid(po?.amount_paid || 0);
+  }, [po]);
 
   if (!isOpen || !po) return null;
+  
   const meta = statusMeta(localStatus);
+  const total = po.total_amount || 0;
+  const balance = total - amountPaid;
+
+  function savePaymentChanges() {
+    onUpdatePayment(po.id, Number(amountPaid), paymentStatus);
+  }
 
   return (
     <div className="po-modal-overlay" onClick={onClose}>
@@ -276,8 +363,24 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {},
             <div style={{ textAlign:'right' }}>
               <div className="small" style={{ color:'var(--po-text-muted)' }}>Status</div>
               <div style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                <span style={{ background: meta.color, color:'#fff', padding:'6px 10px', borderRadius:8, fontWeight:700 }}>{meta.label}</span>
+                <span className="po-badge" style={{ background: meta.color, color:'#fff' }}>{meta.label}</span>
               </div>
+            </div>
+          </div>
+
+          {/* NEW Payment Summary */}
+          <div className="po-payment-summary">
+            <div>
+              <div className="small">Total Value</div>
+              <div className="po-payment-value">{formatCurrency(total)}</div>
+            </div>
+            <div>
+              <div className="small">Amount Paid</div>
+              <div className="po-payment-value paid">{formatCurrency(amountPaid)}</div>
+            </div>
+            <div>
+              <div className="small">Balance Due (Credit)</div>
+              <div className="po-payment-value due">{formatCurrency(balance)}</div>
             </div>
           </div>
 
@@ -286,7 +389,7 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {},
             <div className="po-table-wrap">
               <table className="po-table">
                 <thead>
-                  <tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr>
+                  <tr><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th></tr>
                 </thead>
                 <tbody>
                   {(po.lines || []).map((ln, i) => {
@@ -295,8 +398,8 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {},
                       <tr key={i}>
                         <td>{ln.product_name || prod.name || 'N/A'}</td>
                         <td>{ln.qty}</td>
-                        <td>₨{Number(ln.unit_price || ln.unitPrice || 0).toFixed(2)}</td>
-                        <td>₨{(Number(ln.qty || 0) * Number(ln.unit_price || ln.unitPrice || 0)).toFixed(2)}</td>
+                        <td>{formatCurrency(ln.unit_price || ln.unitPrice)}</td>
+                        <td>{formatCurrency(Number(ln.qty || 0) * Number(ln.unit_price || ln.unitPrice || 0))}</td>
                       </tr>
                     );
                   })}
@@ -305,23 +408,45 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {},
             </div>
           </div>
 
-          <div style={{ marginTop:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div>
-              <div className="small" style={{ color:'var(--po-text-muted)' }}>Notes</div>
-              <div style={{ color:'var(--po-text-secondary)' }}>{po.notes || '—'}</div>
-            </div>
-
-            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              <div style={{ minWidth: 180 }}>
-                <div className="small" style={{ color:'var(--po-text-muted)' }}>Update status</div>
+          {/* UPDATED Controls Section */}
+          <div className="po-controls-grid">
+            {/* Order Status */}
+            <div className="po-control-group">
+              <label className="po-field-label">Update Order Status</label>
+              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                 <select value={localStatus} onChange={(e) => setLocalStatus(e.target.value)} className="po-small-input" disabled={userRole !== 'admin'}>
                   {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
+                <button className="po-btn po-btn-secondary" onClick={() => onUpdateStatus(po.id, localStatus)} disabled={userRole !== 'admin'}>
+                  Save Status
+                </button>
               </div>
-              <button className="po-btn po-btn-primary" onClick={() => onUpdateStatus(po.id, localStatus)} disabled={userRole !== 'admin'}>
-                Save status
-              </button>
             </div>
+            
+            {/* Payment Status */}
+            <div className="po-control-group">
+              <label className="po-field-label">Update Payment</label>
+              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                 <input 
+                  type="number"
+                  value={amountPaid} 
+                  onChange={e => setAmountPaid(e.target.value)} 
+                  className="po-small-input"
+                  disabled={userRole !== 'admin'}
+                />
+                <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} className="po-small-input" disabled={userRole !== 'admin'}>
+                  {PAYMENT_STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <button className="po-btn po-btn-secondary" onClick={savePaymentChanges} disabled={userRole !== 'admin'}>
+                  Save Payment
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop:16 }}>
+            <div className="small" style={{ color:'var(--po-text-muted)' }}>Notes</div>
+            <div style={{ color:'var(--po-text-secondary)' }}>{po.notes || '—'}</div>
           </div>
         </div>
 
@@ -333,10 +458,10 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, productsById = {},
   );
 }
 
-/* ---------------- Main PurchaseOrders Page ---------------- */
+/* ---------------- Main PurchaseOrders Page (UPDATED) ---------------- */
 export default function PurchaseOrders() {
   const dataCtx = useData() || {};
-  const { purchaseOrders = [], products = [], suppliers = [], addPurchaseOrder, updatePurchaseOrderStatus } = dataCtx;
+  const { purchaseOrders = [], products = [], suppliers = [], addPurchaseOrder, updatePurchaseOrderStatus, updatePurchaseOrderPayment } = dataCtx;
   const auth = useAuth() || {};
   const userRole = auth?.user?.role || 'staff';
 
@@ -356,7 +481,6 @@ export default function PurchaseOrders() {
   const [detailPo, setDetailPo] = useState(null);
 
   function handleSavePo(payload) {
-    // if context function exists, call it; else manage local
     if (typeof addPurchaseOrder === 'function') {
       addPurchaseOrder(payload);
       alert('PO created');
@@ -378,6 +502,20 @@ export default function PurchaseOrders() {
     // update view
     setDetailPo((dp) => dp && (dp.id === poId ? { ...dp, status } : dp));
   }
+  
+  // NEW Handler for payment
+  function handleUpdatePayment(poId, amountPaid, paymentStatus) {
+    const payload = { amount_paid: amountPaid, payment_status: paymentStatus };
+    if (typeof updatePurchaseOrderPayment === 'function') {
+      updatePurchaseOrderPayment(poId, payload);
+      alert('Payment updated');
+    } else {
+      setLocalPOs((prev) => prev.map((p) => p.id === poId ? { ...p, ...payload } : p));
+      alert('Payment updated (local)');
+    }
+    setDetailPo((dp) => dp && (dp.id === poId ? { ...dp, ...payload } : dp));
+  }
+
 
   const productsById = useMemo(() => {
     const map = {};
@@ -419,8 +557,8 @@ export default function PurchaseOrders() {
                     <th>Ref</th>
                     <th>Supplier</th>
                     <th>Created</th>
-                    <th>Expected</th>
-                    <th>Lines</th>
+                    <th>Total Value</th> {/* NEW */}
+                    <th>Payment</th> {/* NEW */}
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -428,18 +566,19 @@ export default function PurchaseOrders() {
                 <tbody>
                   {poList.map((po) => {
                     const meta = statusMeta(po.status);
+                    const payMeta = paymentStatusMeta(po.payment_status);
                     return (
                       <tr key={po.id}>
                         <td>{po.ref}</td>
                         <td>{po.supplier_name || suppliers.find(s => s.id === po.supplier)?.company || '—'}</td>
                         <td>{new Date(po.created_at).toLocaleDateString()}</td>
-                        <td>{po.expected_date ? new Date(po.expected_date).toLocaleDateString() : '—'}</td>
-                        <td>{(po.lines || []).length}</td>
-                        <td><span style={{ background: meta.color, color:'#fff', padding: '6px 10px', borderRadius: 8, fontWeight:700 }}>{meta.label}</span></td>
+                        <td>{formatCurrency(po.total_amount)}</td> {/* NEW */}
+                        <td><span className="po-payment-badge" style={{ background: payMeta.color + '20', color: payMeta.color }}>{payMeta.label}</span></td> {/* NEW */}
+                        <td><span className="po-badge" style={{ background: meta.color, color:'#fff' }}>{meta.label}</span></td>
                         <td className="po-actions-col">
                           <button className="icon-btn" title="View details" onClick={() => setDetailPo(po)}> <ClipboardList size={16} /> </button>
                           {userRole === 'admin' && (
-                            <button className="icon-btn" title="Quick receive" onClick={() => handleUpdateStatus(po.id, 'received')}> <Plus size={16} /> </button>
+                            <button className="icon-btn" title="Edit Payments" onClick={() => setDetailPo(po)}> <Edit size={16} /> </button>
                           )}
                         </td>
                       </tr>
@@ -465,6 +604,7 @@ export default function PurchaseOrders() {
         onClose={() => setDetailPo(null)}
         po={detailPo}
         onUpdateStatus={handleUpdateStatus}
+        onUpdatePayment={handleUpdatePayment} // NEW prop
         productsById={productsById}
         userRole={userRole}
       />

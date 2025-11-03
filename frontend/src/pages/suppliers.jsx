@@ -5,9 +5,20 @@ import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Truck, Edit2, Trash2, Search } from 'lucide-react';
 
+// NEW: Currency formatting helper
+const formatCurrency = (amount) => `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 export default function Suppliers() {
   const dataCtx = useData() || {};
-  const { suppliers = [], addSupplier, updateSupplier, deleteSupplier } = dataCtx;
+  // UPDATED: Pull in purchaseOrders
+  const { 
+    suppliers = [], 
+    purchaseOrders = [], // <-- NEW
+    addSupplier, 
+    updateSupplier, 
+    deleteSupplier 
+  } = dataCtx;
+  
   const auth = useAuth() || {};
   const user = auth.user || null;
   const isAdmin = user?.role === 'admin';
@@ -19,6 +30,33 @@ export default function Suppliers() {
     name: '', contact_name: '', phone: '', email: '', address: '', notes: ''
   });
   const [saving, setSaving] = useState(false);
+
+  // NEW: Calculate outstanding balance for each supplier
+  const supplierOutstanding = useMemo(() => {
+    const outstandingMap = new Map();
+    (purchaseOrders || []).forEach(po => {
+      const total = po.total_amount || 0;
+      const paid = po.amount_paid || 0;
+      const balance = total - paid;
+      
+      // Only count if there's a balance due and it's not cancelled
+      if (balance > 0 && po.status !== 'cancelled') {
+        const supplierId = po.supplier; // This is the ID
+        const current = outstandingMap.get(supplierId) || 0;
+        outstandingMap.set(supplierId, current + balance);
+      }
+    });
+    return outstandingMap;
+  }, [purchaseOrders]);
+
+  // NEW: Calculate total outstanding credit for the stat card
+  const totalOutstanding = useMemo(() => {
+    let total = 0;
+    for (const value of supplierOutstanding.values()) {
+      total += value;
+    }
+    return total;
+  }, [supplierOutstanding]);
 
   const totalSuppliers = suppliers.length;
 
@@ -68,11 +106,9 @@ export default function Suppliers() {
     try {
       if (editing && typeof updateSupplier === 'function') {
         await updateSupplier(editing.id, { ...form });
-        // optimistic UI: contexts typically update
       } else if (!editing && typeof addSupplier === 'function') {
         await addSupplier({ ...form });
       } else {
-        // No API functions available — just log
         console.log('Save supplier (mock):', form);
       }
       closeModal();
@@ -80,6 +116,8 @@ export default function Suppliers() {
       console.error('Save supplier failed', err);
       alert('Save failed — check console');
       setSaving(false);
+    } finally {
+      setSaving(false); // Ensure saving is reset
     }
   }
 
@@ -108,10 +146,16 @@ export default function Suppliers() {
         </div>
 
         <div className="sp-actions">
+          {/* UPDATED: Stat cards wrapper */}
           <div className="sp-stats">
             <div className="sp-stat-card c-purple">
-              <div className="sp-stat-title">Supplier List</div>
+              <div className="sp-stat-title">Total Suppliers</div>
               <div className="sp-stat-value">{totalSuppliers}</div>
+            </div>
+            {/* NEW STAT CARD */}
+            <div className="sp-stat-card c-red">
+              <div className="sp-stat-title">Total Outstanding</div>
+              <div className="sp-stat-value">{formatCurrency(totalOutstanding)}</div>
             </div>
           </div>
 
@@ -120,7 +164,7 @@ export default function Suppliers() {
               <Plus size={16} /> Add Supplier
             </button>
           ) : (
-            <button className="btn sp-btn-muted" onClick={() => alert('Staff cannot add suppliers')}>
+            <button className="btn sp-btn-muted" onClick={() => alert('Staff cannot add suppliers')} disabled>
               <Plus size={16} /> Add Supplier
             </button>
           )}
@@ -156,25 +200,34 @@ export default function Suppliers() {
                   <th>Phone</th>
                   <th>Email</th>
                   <th>Address</th>
+                  <th className="sp-align-right">Outstanding Credit</th> {/* NEW Column */}
                   {isAdmin && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {visibleList.map(s => (
-                  <tr key={s.id || s.pk}>
-                    <td className="sp-prodcol"><span className="sp-prod-name">{s.name}</span></td>
-                    <td>{s.contact_name || '—'}</td>
-                    <td>{s.phone || '—'}</td>
-                    <td>{s.email || '—'}</td>
-                    <td>{s.address || '—'}</td>
-                    {isAdmin && (
-                      <td className="sp-actions-col">
-                        <button className="icon-btn" title="Edit" onClick={() => openEdit(s)}><Edit2 size={16} /></button>
-                        <button className="icon-btn danger" title="Delete" onClick={() => handleDelete(s)}><Trash2 size={16} /></button>
+                {visibleList.map(s => {
+                  // NEW: Get outstanding amount for this supplier
+                  const outstanding = supplierOutstanding.get(s.id) || 0;
+                  return (
+                    <tr key={s.id || s.pk}>
+                      <td className="sp-prodcol"><span className="sp-prod-name">{s.name}</span></td>
+                      <td>{s.contact_name || '—'}</td>
+                      <td>{s.phone || '—'}</td>
+                      <td>{s.email || '—'}</td>
+                      <td>{s.address || '—'}</td>
+                      {/* NEW Cell */}
+                      <td className={`sp-outstanding ${outstanding > 0 ? 'due' : ''}`}>
+                        {formatCurrency(outstanding)}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      {isAdmin && (
+                        <td className="sp-actions-col">
+                          <button className="icon-btn" title="Edit" onClick={() => openEdit(s)}><Edit2 size={16} /></button>
+                          <button className="icon-btn danger" title="Delete" onClick={() => handleDelete(s)}><Trash2 size={16} /></button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -187,48 +240,51 @@ export default function Suppliers() {
           <div className="sp-modal" onClick={e => e.stopPropagation()}>
             <div className="sp-modal-header">
               <h3>{editing ? 'Edit Supplier' : 'Add Supplier'}</h3>
-              <div>
-                <button className="btn btn-muted" onClick={closeModal}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ marginLeft: 8 }}>
-                  {saving ? 'Saving...' : (editing ? 'Save Changes' : 'Create Supplier')}
-                </button>
-              </div>
+              {/* UPDATED: Moved buttons to footer for consistency */}
             </div>
 
             <div className="sp-modal-body">
-              <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+              <form id="supplier-form" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
                 <div className="sp-row">
                   <div className="sp-field">
                     <label className="sp-field-label">Company name</label>
-                    <input value={form.name} onChange={(e)=>setForm(f=>({...f, name: e.target.value}))} placeholder="Supplier company name" required />
+                    <input value={form.name} onChange={updateField('name')} placeholder="Supplier company name" required />
                   </div>
                   <div className="sp-field">
                     <label className="sp-field-label">Contact person</label>
-                    <input value={form.contact_name} onChange={(e)=>setForm(f=>({...f, contact_name: e.target.value}))} placeholder="Contact name" />
+                    <input value={form.contact_name} onChange={updateField('contact_name')} placeholder="Contact name" />
                   </div>
                 </div>
 
                 <div className="sp-row">
                   <div className="sp-field">
                     <label className="sp-field-label">Phone</label>
-                    <input value={form.phone} onChange={(e)=>setForm(f=>({...f, phone: e.target.value}))} placeholder="+1234567890" />
+                    <input value={form.phone} onChange={updateField('phone')} placeholder="+1234567890" />
                   </div>
                   <div className="sp-field">
                     <label className="sp-field-label">Email</label>
-                    <input value={form.email} onChange={(e)=>setForm(f=>({...f, email: e.target.value}))} placeholder="contact@vendor.com" />
+                    <input type="email" value={form.email} onChange={updateField('email')} placeholder="contact@vendor.com" />
                   </div>
                 </div>
 
                 <div className="sp-field">
                   <label className="sp-field-label">Address</label>
-                  <input value={form.address} onChange={(e)=>setForm(f=>({...f, address: e.target.value}))} placeholder="Street, City, Country" />
+                  <input value={form.address} onChange={updateField('address')} placeholder="Street, City, Country" />
                 </div>
 
                 <div className="sp-field">
                   <label className="sp-field-label">Notes (optional)</label>
-                  <textarea value={form.notes} onChange={(e)=>setForm(f=>({...f, notes: e.target.value}))} rows={3} placeholder="Any notes"></textarea>
+                  <textarea value={form.notes} onChange={updateField('notes')} rows={3} placeholder="Any notes"></textarea>
                 </div>
               </form>
+            </div>
+            
+            {/* UPDATED: Modal footer */}
+            <div className="sp-modal-footer">
+              <button className="btn sp-btn-muted" onClick={closeModal}>Cancel</button>
+              <button className="btn sp-btn-primary" type="submit" form="supplier-form" disabled={saving} style={{ marginLeft: 8 }}>
+                {saving ? 'Saving...' : (editing ? 'Save Changes' : 'Create Supplier')}
+              </button>
             </div>
           </div>
         </div>

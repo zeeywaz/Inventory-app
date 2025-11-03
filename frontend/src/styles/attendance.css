@@ -1,9 +1,10 @@
 /* src/styles/attendance.css — clean, solid colors, responsive (prefixed with am-)
-   Tweaks made:
-   - Reduced large empty/mark-attendance box sizing so it matches other elements
-   - Made date input text black and more visible
-   - Tightened paddings, gaps and table/row spacing for a sleeker professional look
-   - Kept variables prefixed with am- to avoid collisions
+   UPDATED:
+   - Added 4-column support for stats grid
+   - Added styles for avatars
+   - Added .form-row for modal forms
+   - Added styles for modal payout input (.payout-input-wrapper)
+   - Added .mono text-align for currency columns
 */
 
 /* Palette (variables prefixed with am- to avoid collisions) */
@@ -74,8 +75,13 @@
 .btn.ghost { background:#f7f8fb; color:var(--am-accent); border:1px solid #eef2ff; }
 .btn.small { padding:6px 10px; font-size:0.9rem; }
 
-/* stats --- REFACTORED to use thin left accent stripe --- */
-.am-stats { display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; margin-bottom:18px; }
+/* stats --- UPDATED to 4 columns --- */
+.am-stats { 
+  display:grid; 
+  grid-template-columns: repeat(4, 1fr); /* CHANGED */
+  gap:14px; 
+  margin-bottom:18px; 
+}
 .stat-card {
   position: relative;
   padding:14px; /* slightly reduced */
@@ -107,7 +113,6 @@
 .stat-card:hover::before { width: calc(var(--am-accent-left-width) + var(--am-accent-left-hover-inset)); }
 .stat-card > * { position: relative; z-index: 1; }
 
-/* ADDED wrapper for text */
 .stat-info {
   display: flex;
   flex-direction: column;
@@ -115,6 +120,7 @@
 }
 .stat-title { color:var(--am-muted); font-size:0.88rem; font-weight:600; }
 .stat-value { font-size:1.45rem; font-weight:800; margin-top:0; color:var(--am-text); }
+.stat-sub { color: var(--am-muted); font-size: 13px; }
 
 /* icon block */
 .stat-icon {
@@ -124,6 +130,7 @@
   color: var(--card-color, var(--am-accent-left-color));
   opacity: 0.95;
 }
+.stat-icon .icon-md { width: 20px; height: 20px; }
 
 /* main grid */
 .am-main-grid { display:grid; grid-template-columns: 2fr 1fr; gap:18px; align-items:start; }
@@ -145,7 +152,7 @@
 /* date input - make text clearly visible (black) and compact */
 .am-date-input {
   padding:8px 10px;
-  border-radius:8px;
+  border-radius:10px;
   border:1px solid #e6eef8;
   background:#ffffff;
   color: var(--am-text);        /* ensure black text for readability */
@@ -163,7 +170,13 @@
 .am-card-body { padding:14px; } /* reduced to match the modern compact look */
 
 /* reduce the min-height for left column so EmptyAttendance doesn't create a huge card */
-.am-left-card .am-card-body { min-height: 140px; display: flex; align-items: center; justify-content: center; }
+.am-left-card .am-card-body { 
+  min-height: 140px; 
+  display: flex; 
+  flex-direction: column; /* CHANGED */
+  align-items: center; 
+  justify-content: center; 
+}
 
 /* empty attendance - much tighter, centered and sized to match cards */
 .empty-attendance {
@@ -184,14 +197,28 @@
 .empty-attendance .icon-xl { width:64px; height:64px; opacity:0.95; color: #c7d2fe; }
 
 /* table */
-.table-wrap { overflow-x:auto; }
+.table-wrap { overflow-x:auto; width: 100%; }
 .att-table { width:100%; border-collapse:collapse; min-width:600px; font-size:0.95rem; }
 .att-table thead th { text-align:left; font-size:0.82rem; color:var(--am-muted); padding:10px 12px; border-bottom:1px solid var(--am-border); background:transparent; text-transform:uppercase; letter-spacing:0.03em; }
 .att-table tbody td { padding:10px 12px; border-bottom:1px solid #f3f6f9; vertical-align:middle; }
 .att-table tbody tr:hover { background: #fbfdff; transform: translateY(0); } /* subtle hover */
+
+/* NEW Avatar Style */
+.avatar {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: #f8fafc; color: var(--am-accent); font-weight: 800;
+  flex-shrink: 0;
+}
+.avatar-small {
+  width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
+  background: #fbfbff; color: var(--am-accent); font-weight: 700; font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
 .emp-name { font-weight:700; color:var(--am-text); }
 .emp-dept { color:var(--am-muted); font-size:0.88rem; margin-top:4px; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; color:#1f2937; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; color:#1f2937; text-align: right; }
+.att-table thead th.mono { text-align: right; }
 
 /* pills - slightly smaller more refined */
 .pill {
@@ -235,9 +262,16 @@
 
 /* form */
 .form-stack { display:flex; flex-direction:column; gap:10px; }
+.field { display: flex; flex-direction: column; flex: 1; }
 .field .label { color:var(--am-muted); font-weight:700; margin-bottom:6px; }
-.input { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--am-border); background:var(--am-card); color:var(--am-text); }
+.input { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--am-border); background:var(--am-card); color:var(--am-text); box-sizing: border-box; }
 .input:focus { outline:none; box-shadow:0 8px 20px rgba(79,70,229,0.12); border-color:var(--am-accent); }
+
+/* NEW Form Row */
+.form-row {
+  display: flex;
+  gap: 10px;
+}
 
 /* attendance modal list */
 .attendance-list { display:flex; flex-direction:column; gap:8px; max-height:48vh; overflow:auto; padding-right:6px; }
@@ -254,22 +288,70 @@
 .attendance-controls { display:flex; gap:10px; align-items:center; }
 .radio input { margin-right:6px; accent-color: var(--am-accent); }
 
+/* --- NEW Payout Input Styles --- */
+.payout-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.payout-currency {
+  position: absolute;
+  left: 8px;
+  color: var(--am-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  pointer-events: none; /* So you can click the input */
+}
+.attendance-payout-input {
+  width: 110px;
+  padding: 6px 8px 6px 28px; /* Padding for '₨' */
+  border-radius: 6px;
+  border: 1px solid var(--am-border);
+  background: var(--am-card);
+  color: var(--am-text);
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  text-align: right;
+  transition: all 0.12s ease;
+}
+.attendance-payout-input:focus {
+  outline: none;
+  border-color: var(--am-accent);
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+.attendance-payout-input:disabled {
+  background: var(--am-bg);
+  color: var(--am-muted);
+  border-color: #f1f5ff;
+}
+/* --- End Payout Input Styles --- */
+
+
 /* small notes */
 .note { color:var(--am-muted); text-align:center; padding:8px; font-size:0.92rem; }
 
 /* responsive */
 @media (max-width: 980px) {
   .am-main-grid { grid-template-columns: 1fr; }
-  .am-stats { grid-template-columns: 1fr; }
+  .am-stats { grid-template-columns: repeat(2, 1fr); } /* CHANGED */
   .table-wrap { overflow:auto; }
   .modal { max-width: 92%; }
+}
+@media (max-width: 768px) {
+  .attendance-controls { 
+    flex-direction: column; 
+    align-items: flex-end; 
+    gap: 8px;
+  }
 }
 @media (max-width: 640px) {
   .am-page { padding:12px; }
   .am-header { gap:8px; }
+  .am-stats { grid-template-columns: 1fr; } /* CHANGED */
   .stat-card { padding-left: calc(var(--am-accent-left-width) + 12px); padding:12px; }
   .am-left-card .am-card-body { min-height: auto; padding:12px; }
   .empty-attendance { max-width: 100%; padding:12px; }
+  .form-row { flex-direction: column; gap: 10px; }
 }
 
 /* Helper classes for quick accent changes (optional) */

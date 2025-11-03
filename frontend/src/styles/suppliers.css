@@ -1,4 +1,8 @@
-/* suppliers.css — refined, high-contrast, professional UI */
+/* suppliers.css — refined, high-contrast, professional UI
+   UPDATED:
+   - Added .sp-outstanding styles for credit column
+   - Added .sp-align-right helper
+*/
 
 /* ---------- Theme variables ---------- */
 :root{
@@ -58,8 +62,8 @@
 }
 
 /* ---------- Actions & Stats ---------- */
-.sp-actions { display:flex; align-items:center; gap:14px; }
-.sp-stats { display:flex; gap:12px; align-items:center; }
+.sp-actions { display:flex; align-items:center; gap:14px; flex-wrap: wrap; } /* Added wrap */
+.sp-stats { display:flex; gap:12px; align-items:center; flex-grow: 1; } /* Added flex-grow */
 
 .sp-stat-card {
   background: var(--sp-card);
@@ -70,7 +74,8 @@
   flex-direction:column;
   gap:6px;
   box-shadow: var(--sp-elev);
-  min-width:120px;
+  min-width:160px; /* Increased min-width */
+  flex: 1; /* Allow cards to grow */
 }
 .sp-stat-card .sp-stat-title { font-size:0.9rem; color:var(--sp-muted); font-weight:600; }
 .sp-stat-card .sp-stat-value { font-size:1.25rem; font-weight:800; color:var(--sp-strong); }
@@ -99,6 +104,8 @@
   box-shadow: 0 8px 24px rgba(79,70,229,0.14); /* solid color shadow */
 }
 .sp-btn-primary:hover { transform: translateY(-2px); background: var(--sp-purple-600); }
+.sp-btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; box-shadow: none; }
+
 .sp-btn-muted {
   background: var(--sp-card);
   color: var(--sp-strong);
@@ -255,16 +262,33 @@
   border-color: var(--sp-purple);
 }
 
+/* ---------- NEW: Outstanding Credit Styles ---------- */
+.sp-align-right {
+  text-align: right;
+}
+.sp-outstanding {
+  font-weight: 700;
+  color: var(--sp-text);
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  font-size: 0.9rem;
+}
+.sp-outstanding.due {
+  color: var(--sp-red);
+}
+
 /* ---------- Utility / small screens ---------- */
 @media (max-width: 980px) {
   .sp-row { flex-direction:column; }
   .sp-table { min-width:760px; }
   .sp-actions-col { width:140px; }
+  .sp-stats { flex-direction: column; align-items: stretch; } /* Stack stats on tablet */
 }
 @media (max-width: 640px) {
   .sp-header { flex-direction:column; align-items:flex-start; gap:12px; }
   .sp-table { min-width:520px; }
   .sp-actions-col { text-align:left; }
+  .sp-stats { flex-direction: column; align-items: stretch; } /* Stack stats on mobile */
 }
 
 /* ---------- Accessibility helpers ---------- */
