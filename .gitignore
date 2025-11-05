@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Django
+db.sqlite3
+/staticfiles/
+/media/
+
+# Env
+.env
+
+# VSCode / IDE
+.vscode/
+.idea/
