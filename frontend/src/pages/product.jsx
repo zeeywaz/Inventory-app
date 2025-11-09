@@ -1,26 +1,19 @@
+// src/pages/ProductsPage.jsx
 import React, { useMemo, useState, useEffect } from 'react';
 import '../styles/product.css';
-import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Plus,
   Search,
   Edit2,
   Trash2,
-  Package,
-  DollarSign,
-  Truck,
-  Tag,
   Box,
   Edit3,
 } from 'lucide-react';
 
-/**
- * Product page
- * - search by name/sku/category/vehicle
- * - stats cards
- * - admin vs staff visibility & permissions
- */
+/* ---------------------------
+   Helpers & small components
+   --------------------------- */
 
 function StatCard({ title, value, colorClass }) {
   return (
@@ -31,12 +24,14 @@ function StatCard({ title, value, colorClass }) {
   );
 }
 
-/* Simple Badge */
 function CategoryBadge({ children }) {
   return <span className="pi-badge">{children}</span>;
 }
 
-/* Modal to add/edit entire product - admin only */
+/* ---------------------------
+   Modals (unchanged markup, wired to callbacks)
+   --------------------------- */
+
 function EditProductModal({ open, product = null, onClose, onSave }) {
   const [form, setForm] = useState({
     name: '',
@@ -55,10 +50,10 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
         name: product.name || '',
         sku: product.sku || '',
         category: product.category || '',
-        quantity_in_stock: product.quantity_in_stock ?? product.quantityInStock ?? 0,
-        cost_price: product.cost_price ?? product.costPrice ?? '',
-        selling_price: product.selling_price ?? product.sellingPrice ?? '',
-        min_selling_price: product.min_selling_price ?? product.minSellingPrice ?? '',
+        quantity_in_stock: product.quantity_in_stock ?? 0,
+        cost_price: product.cost_price ?? '',
+        selling_price: product.selling_price ?? '',
+        min_selling_price: product.minimum_selling_price ?? product.min_selling_price ?? '',
         vehicle_for: product.vehicle_for || product.vehicle || '',
       });
     } else {
@@ -80,17 +75,19 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
   function updateField(k) { return (e) => setForm(f => ({ ...f, [k]: e.target.value })); }
 
   function handleSave() {
-    // validate minimally
     if (!form.name || !form.sku) {
       alert('Product name and SKU are required.');
       return;
     }
     const payload = {
-      ...form,
+      name: form.name,
+      sku: form.sku,
+      category: form.category || null,
       quantity_in_stock: Number(form.quantity_in_stock || 0),
-      cost_price: Number(form.cost_price || 0),
-      selling_price: Number(form.selling_price || 0),
-      min_selling_price: Number(form.min_selling_price || 0),
+      cost_price: form.cost_price === '' ? 0 : Number(form.cost_price),
+      selling_price: form.selling_price === '' ? 0 : Number(form.selling_price),
+      minimum_selling_price: form.min_selling_price === '' ? 0 : Number(form.min_selling_price),
+      vehicle_for: form.vehicle_for || null,
     };
     onSave(payload);
   }
@@ -160,11 +157,10 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
   );
 }
 
-/* Stock-only modal (for staff and admin) */
 function EditStockModal({ open, product, onClose, onSaveStock }) {
   const [qty, setQty] = useState(0);
   useEffect(()=> {
-    if (product) setQty(product.quantity_in_stock ?? product.quantityInStock ?? 0);
+    if (product) setQty(product.quantity_in_stock ?? 0);
   }, [product, open]);
 
   if (!open) return null;
@@ -190,44 +186,83 @@ function EditStockModal({ open, product, onClose, onSaveStock }) {
   );
 }
 
+/* ---------------------------
+   Main Page (wired to backend)
+   --------------------------- */
+
 export default function ProductsPage() {
-  const { products = [], updateProduct, createProduct, deleteProduct, updateStock } = useData() || {};
-  const { user, role } = useAuth() || {};
+  const { user, token, role } = useAuth() || {}; // expects your AuthContext to expose token and role
   const isAdmin = role === 'admin' || user?.role === 'admin';
   const isStaff = role === 'staff' || user?.role === 'staff';
 
+  const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
-  const [filtered, setFiltered] = useState(products || []);
+  const [filtered, setFiltered] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [stockModalOpen, setStockModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => setFiltered(products || []), [products]);
+  // base API helper (attach bearer token if available)
+  const apiFetch = async (path, opts = {}) => {
+    const base = window.__BACKEND_BASE_URL__ || ''; // optional global base
+    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${base}${path}`, { credentials: 'same-origin', ...opts, headers });
+    if (!res.ok) {
+      const text = await res.text().catch(()=>null);
+      let err = text || res.statusText || `HTTP ${res.status}`;
+      throw new Error(err);
+    }
+    // Return parsed JSON when possible
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return res.json();
+    return null;
+  };
 
+  // fetch products
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch('/api/products/');
+      // backend likely returns { results: [...]} when using pagination; handle both
+      const items = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+      setProducts(items);
+    } catch (err) {
+      console.error('Failed fetching products', err);
+      // fallback: keep existing products (or empty)
+      alert('Could not fetch products from backend. Check server and CORS.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadProducts(); }, []); // once
+
+  // search/filter
   useEffect(() => {
     const q = search.trim().toLowerCase();
-    if (!q) { setFiltered(products || []); return; }
-    const result = (products || []).filter(p => {
+    if (!q) { setFiltered(products); return; }
+    setFiltered(products.filter(p => {
       return (
         (p.name || '').toString().toLowerCase().includes(q) ||
         (p.sku || '').toString().toLowerCase().includes(q) ||
         (p.category || '').toString().toLowerCase().includes(q) ||
         (p.vehicle_for || p.vehicle || '').toString().toLowerCase().includes(q)
       );
-    });
-    setFiltered(result);
+    }));
   }, [search, products]);
 
   // stats
   const stats = useMemo(() => {
-    const total = (products || []).length;
-    const inStock = (products || []).filter(p => (p.quantity_in_stock ?? p.quantityInStock ?? 0) > 0).length;
-    const low = (products || []).filter(p => {
-      const stock = (p.quantity_in_stock ?? p.quantityInStock ?? 0);
-      const threshold = (p.low_stock_threshold ?? p.lowStockThreshold ?? 5);
+    const total = products.length;
+    const inStock = products.filter(p => (p.quantity_in_stock ?? 0) > 0).length;
+    const low = products.filter(p => {
+      const stock = (p.quantity_in_stock ?? 0);
+      const threshold = (p.reorder_level ?? p.low_stock_threshold ?? 5);
       return stock > 0 && stock <= threshold;
     }).length;
-    const out = (products || []).filter(p => (p.quantity_in_stock ?? p.quantityInStock ?? 0) === 0).length;
+    const out = products.filter(p => (p.quantity_in_stock ?? 0) === 0).length;
     return { total, inStock, low, out };
   }, [products]);
 
@@ -244,78 +279,124 @@ export default function ProductsPage() {
     setStockModalOpen(true);
   }
 
-  async function handleDelete(product) {
-    if (!isAdmin) return alert('Only admins can delete products.');
-    if (!window.confirm(`Delete product "${product.name}" (SKU: ${product.sku})? This cannot be undone.`)) return;
-    if (typeof deleteProduct === 'function') {
-      try {
-        await deleteProduct(product.id);
-        alert('Deleted');
-      } catch (err) {
-        console.error(err);
-        alert('Delete failed');
-      }
-    } else {
-      console.log('Delete prepared:', product);
-      alert('Delete (mock) — implement deleteProduct in DataContext.');
+  /* ---------------------------
+     API mutation helpers
+     --------------------------- */
+
+  async function createProduct(payload) {
+    // map to backend names: minimum_selling_price etc.
+    const body = {
+      name: payload.name,
+      sku: payload.sku,
+      category: payload.category,
+      quantity_in_stock: payload.quantity_in_stock,
+      cost_price: payload.cost_price,
+      selling_price: payload.selling_price,
+      minimum_selling_price: payload.minimum_selling_price ?? payload.min_selling_price ?? 0,
+      vehicle_for: payload.vehicle_for,
+    };
+    const newProd = await apiFetch('/api/products/', { method: 'POST', body: JSON.stringify(body) });
+    // append returned product
+    const created = Array.isArray(newProd) ? newProd[0] : newProd;
+    setProducts(prev => [created, ...prev]);
+    return created;
+  }
+
+  async function updateProduct(id, patch) {
+    // Admin: can patch any field. Staff should not call this method (UI prevents it).
+    const body = { ...patch };
+    // map possible client keys to backend keys
+    if (body.min_selling_price !== undefined) {
+      body.minimum_selling_price = body.min_selling_price;
+      delete body.min_selling_price;
+    }
+    const updated = await apiFetch(`/api/products/${id}/`, { method: 'PATCH', body: JSON.stringify(body) });
+    setProducts(prev => prev.map(p => (String(p.id) === String(id) ? updated : p)));
+    return updated;
+  }
+
+  async function deleteProduct(id) {
+    await apiFetch(`/api/products/${id}/`, { method: 'DELETE' });
+    setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
+    return true;
+  }
+
+  async function updateStock(productId, { quantity_in_stock }) {
+    // We use the adjust-stock endpoint — this will create inventory movement on backend
+    try {
+      // compute change: need current product quantity
+      const existing = products.find(p => String(p.id) === String(productId));
+      const currentQty = existing ? (existing.quantity_in_stock ?? 0) : 0;
+      const change = Number(quantity_in_stock) - Number(currentQty);
+
+      // If backend supports direct PATCH to product for staff you could do:
+      // await apiFetch(`/api/products/${productId}/`, { method: 'PATCH', body: JSON.stringify({ quantity_in_stock }) });
+
+      // preferable: call adjust-stock with integer change
+      await apiFetch(`/api/products/${productId}/adjust-stock/`, {
+        method: 'POST',
+        body: JSON.stringify({ change, reason: 'Stock updated via UI' })
+      });
+
+      // Refresh product list item or whole list
+      await loadProducts();
+    } catch (err) {
+      console.error('updateStock error', err);
+      throw err;
     }
   }
 
+  /* ---------------------------
+     UI event handlers that call above helpers
+     --------------------------- */
+
   async function handleSaveProduct(payload) {
-    // payload is the full product object values
-    if (selectedProduct && selectedProduct.id) {
-      // update
-      const id = selectedProduct.id;
-      if (typeof updateProduct === 'function') {
-        try {
-          await updateProduct(id, payload);
-          alert('Saved');
-        } catch (err) {
-          console.error(err); alert('Save failed');
-        }
+    try {
+      if (selectedProduct && selectedProduct.id) {
+        if (!isAdmin) { alert('Only admins can edit product details.'); return; }
+        await updateProduct(selectedProduct.id, payload);
+        alert('Saved');
       } else {
-        console.log('Update prepared:', id, payload);
-        alert('Saved (mock) — implement updateProduct in DataContext.');
+        if (!isAdmin) { alert('Only admins can create products.'); return; }
+        await createProduct(payload);
+        alert('Product added');
       }
-    } else {
-      // create
-      if (typeof createProduct === 'function') {
-        try {
-          await createProduct(payload);
-          alert('Product added');
-        } catch (err) {
-          console.error(err); alert('Create failed');
-        }
-      } else {
-        console.log('Create prepared:', payload);
-        alert('Product added (mock) — implement createProduct in DataContext.');
-      }
+      setEditModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Save failed: ' + (err.message || err));
     }
-    setEditModalOpen(false);
   }
 
   async function handleSaveStock({ productId, quantity_in_stock }) {
-    if (typeof updateStock === 'function') {
-      try {
-        await updateStock(productId, { quantity_in_stock });
-        alert('Stock updated');
-      } catch (err) {
-        console.error(err); alert('Stock update failed');
-      }
-    } else if (typeof updateProduct === 'function') {
-      // fallback call to updateProduct if updateStock isn't available
-      try {
-        await updateProduct(productId, { quantity_in_stock });
-        alert('Stock updated (via updateProduct)');
-      } catch (err) {
-        console.error(err); alert('Stock update failed');
-      }
-    } else {
-      console.log('Stock update prepared:', { productId, quantity_in_stock });
-      alert('Stock changed (mock) — implement updateStock/updateProduct in DataContext.');
+    try {
+      if (!isAdmin && !isStaff) { alert('Not authorized to edit stock'); return; }
+      await updateStock(productId, { quantity_in_stock });
+      alert('Stock updated');
+      setStockModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Stock update failed: ' + (err.message || err));
     }
-    setStockModalOpen(false);
   }
+
+  async function handleDelete(product) {
+    if (!isAdmin) return alert('Only admins can delete products.');
+    if (!window.confirm(`Delete product "${product.name}" (SKU: ${product.sku})? This cannot be undone.`)) return;
+    try {
+      await deleteProduct(product.id);
+      alert('Deleted');
+    } catch (err) {
+      console.error(err);
+      alert('Delete failed: ' + (err.message || err));
+    }
+  }
+
+  /* ---------------------------
+     Render
+     --------------------------- */
+
+  const displayed = filtered;
 
   return (
     <div className="pi-page">
@@ -350,7 +431,7 @@ export default function ProductsPage() {
 
       <div className="pi-table-card card">
         <div className="pi-table-header">
-          <div className="pi-table-title"><Box size={16} /> Product List ({filtered.length})</div>
+          <div className="pi-table-title"><Box size={16} /> Product List ({displayed.length})</div>
         </div>
 
         <div className="pi-table-wrap">
@@ -369,10 +450,14 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => {
-                const stock = p.quantity_in_stock ?? p.quantityInStock ?? 0;
-                const lowThreshold = p.low_stock_threshold ?? p.lowStockThreshold ?? 5;
-                const minPrice = p.min_selling_price ?? p.minSellingPrice ?? p.min_price ?? 0;
+              {loading && (
+                <tr><td colSpan={isAdmin ? 9 : 8} className="pi-empty">Loading products...</td></tr>
+              )}
+
+              {!loading && displayed.map((p) => {
+                const stock = p.quantity_in_stock ?? 0;
+                const lowThreshold = p.reorder_level ?? p.low_stock_threshold ?? 5;
+                const minPrice = p.minimum_selling_price ?? p.min_selling_price ?? 0;
                 return (
                   <tr key={p.id} className={stock === 0 ? 'out' : stock <= lowThreshold ? 'low' : ''}>
                     <td className="pi-prodcol">
@@ -387,15 +472,14 @@ export default function ProductsPage() {
                       </div>
                     </td>
 
-                    {isAdmin && <td>₨ {Number(p.cost_price ?? p.costPrice ?? 0).toFixed(2)}</td>}
+                    {isAdmin && <td>₨ {Number(p.cost_price ?? 0).toFixed(2)}</td>}
                     {!isAdmin && <>{/* hide cost from staff */}</>}
 
-                    <td>₨ {Number(p.selling_price ?? p.sellingPrice ?? 0).toFixed(2)}</td>
+                    <td>₨ {Number(p.selling_price ?? 0).toFixed(2)}</td>
                     <td className="pi-min-price">₨ {Number(minPrice).toFixed(2)}</td>
                     <td>{p.vehicle_for ?? p.vehicle ?? 'Universal'}</td>
 
                     <td className="pi-actions-col">
-                      {/* admin can edit entire product, staff only stock */}
                       {isAdmin ? (
                         <>
                           <button className="icon-btn" title="Edit product" onClick={() => openEditProduct(p)}><Edit2 size={16} /></button>
@@ -410,7 +494,8 @@ export default function ProductsPage() {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+
+              {!loading && displayed.length === 0 && (
                 <tr>
                   <td colSpan={isAdmin ? 9 : 8} className="pi-empty">No products found.</td>
                 </tr>
@@ -420,7 +505,6 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* modals */}
       <EditProductModal open={editModalOpen} product={selectedProduct} onClose={() => setEditModalOpen(false)} onSave={handleSaveProduct} />
       <EditStockModal open={stockModalOpen} product={selectedProduct} onClose={() => setStockModalOpen(false)} onSaveStock={handleSaveStock} />
     </div>

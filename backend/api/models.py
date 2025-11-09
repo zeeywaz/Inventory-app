@@ -38,7 +38,7 @@ class Employee(models.Model):
     name = models.CharField(max_length=255)
     department = models.CharField(max_length=128, blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)
+    nic = models.CharField(max_length=50, blank=True, null=True)
     hire_date = models.DateField(blank=True, null=True)
     daily_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
     is_active = models.BooleanField(default=True)
@@ -114,7 +114,6 @@ class Product(models.Model):
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
     minimum_selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
     quantity_in_stock = models.PositiveIntegerField(default=0)  # no negatives
-    reorder_level = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

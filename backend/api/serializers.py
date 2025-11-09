@@ -43,7 +43,7 @@ class ProductSerializer(serializers.ModelSerializer):
         # include cost_price but we may remove it in to_representation
         fields = (
             'id', 'sku', 'name', 'description', 'cost_price', 'selling_price',
-            'minimum_selling_price', 'quantity_in_stock', 'reorder_level',
+            'minimum_selling_price', 'quantity_in_stock',
             'is_active', 'created_at', 'updated_at', 'is_out_of_stock'
         )
         read_only_fields = ('id', 'created_at', 'updated_at', 'is_out_of_stock')
@@ -287,3 +287,29 @@ class AuditLogSerializer(serializers.ModelSerializer):
         model = models.AuditLog
         fields = ('id', 'actor', 'action', 'entity_type', 'entity_id', 'changes', 'created_at')
         read_only_fields = ('id', 'created_at')
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Employee
+        fields = [
+            'id',
+            'employee_code',
+            'name',
+            'department',
+            'phone',
+            'nic',
+            'hire_date',
+            'daily_salary',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        # Auto-generate a simple employee_code if not supplied: EMP + timestamp
+        if not validated_data.get('employee_code'):
+            import time
+            validated_data['employee_code'] = f"EMP{int(time.time())}"
+        return super().create(validated_data)

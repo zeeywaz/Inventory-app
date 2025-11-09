@@ -35,6 +35,12 @@ ALLOWED_HOSTS = []
 
 
 # Application definition
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+# Optionally allow credentials (if using cookies)
+CORS_ALLOW_CREDENTIALS = True
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -44,10 +50,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework', 
+    'corsheaders',
     'api',
+    'rest_framework_simplejwt.token_blacklist'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -136,3 +145,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 AUTH_USER_MODEL = 'api.User'
+
+
+# --- Django REST Framework config (add this) ---
+REST_FRAMEWORK = {
+    # Support JWT (if you keep it) and SessionAuthentication for browsable login
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # keep if you use JWT later
+        'rest_framework.authentication.SessionAuthentication',       # allow session cookies
+        'rest_framework.authentication.BasicAuthentication',         # helpful for curl / tools
+    ),
+    # Default permission (you can override per-view)
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+}
