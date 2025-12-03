@@ -1,22 +1,29 @@
+// src/pages/CustomersPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/customers.css';
-import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../api'; // axios client with baseURL + auth interceptors
 import {
   Plus,
   Search,
   User,
   Edit2,
   Trash2,
-  CreditCard,
   DollarSign,
-  UserCheck,
 } from 'lucide-react';
 
 /**
- * Customers page
- * - Admin: add/edit/delete, set credit limit & outstanding
- * - Staff: add basic customer, view, record payments (cannot delete, cannot set credit limit)
+ * Customers page (direct backend calls)
+ * - Uses only `credited_amount` (no `outstanding`)
+ * - Recording a payment reduces credited_amount (clamped to >= 0)
+ *
+ * Backend expectations:
+ * - GET /customers/ (list)
+ * - POST /customers/ (create)
+ * - PATCH /customers/:id/ (update)
+ * - DELETE /customers/:id/ (delete)
+ * Optional (preferred): POST /customers/:id/payments/ or POST /customer-payments/
+ * If payments endpoints exist they will be used; otherwise this file PATCHes the customer's credited_amount.
  */
 
 function StatCard({ title, value, colorClass }) {
@@ -28,15 +35,13 @@ function StatCard({ title, value, colorClass }) {
   );
 }
 
-/* Modal for add / edit customer */
 function CustomerModal({ open, customer = null, onClose, onSave, isAdmin }) {
   const [form, setForm] = useState({
     name: '',
     phone: '',
     email: '',
-    credit_limit: '',
-    outstanding: '',
     notes: '',
+    credit_limit: '', // will be sent as credited_amount
   });
 
   useEffect(() => {
@@ -45,33 +50,29 @@ function CustomerModal({ open, customer = null, onClose, onSave, isAdmin }) {
         name: customer.name || '',
         phone: customer.phone || '',
         email: customer.email || '',
-        credit_limit: (customer.credit_limit ?? customer.creditLimit ?? '') || '',
-        outstanding: (customer.outstanding ?? customer.outstanding_amount ?? '') || '',
         notes: customer.notes || '',
+        credit_limit: customer.credited_amount ?? '',
       });
     } else {
-      setForm({ name: '', phone: '', email: '', credit_limit: '', outstanding: '', notes: '' });
+      setForm({ name: '', phone: '', email: '', notes: '', credit_limit: '' });
     }
   }, [customer, open]);
 
   if (!open) return null;
 
-  function updateField(k) {
-    return (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  }
+  function updateField(k) { return (e) => setForm(f => ({ ...f, [k]: e.target.value })); }
 
   function save() {
     if (!form.name) return alert('Name is required.');
-    // Staff cannot set credit_limit or outstanding when creating/updating
     const payload = {
       name: form.name,
       phone: form.phone,
       email: form.email,
       notes: form.notes,
     };
+    // map credit_limit -> credited_amount (DB column)
     if (isAdmin) {
-      payload.credit_limit = Number(form.credit_limit || 0);
-      payload.outstanding = Number(form.outstanding || 0);
+      payload.credited_amount = form.credit_limit ? Number(form.credit_limit) : 0;
     }
     onSave(payload);
   }
@@ -109,12 +110,14 @@ function CustomerModal({ open, customer = null, onClose, onSave, isAdmin }) {
           {isAdmin && (
             <div className="cu-row">
               <label className="cu-field">
-                <div className="cu-field-label">Credit limit</div>
-                <input type="number" value={form.credit_limit} onChange={updateField('credit_limit')} min="0" />
-              </label>
-              <label className="cu-field">
-                <div className="cu-field-label">Outstanding</div>
-                <input type="number" value={form.outstanding} onChange={updateField('outstanding')} min="0" />
+                <div className="cu-field-label">Credited amount</div>
+                <input
+                  type="number"
+                  value={form.credit_limit}
+                  onChange={updateField('credit_limit')}
+                  min="0"
+                  step="0.01"
+                />
               </label>
             </div>
           )}
@@ -129,7 +132,6 @@ function CustomerModal({ open, customer = null, onClose, onSave, isAdmin }) {
   );
 }
 
-/* Modal to record a payment (reduce outstanding). Staff & Admin allowed. */
 function PaymentModal({ open, customer, onClose, onRecordPayment }) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -180,118 +182,194 @@ function PaymentModal({ open, customer, onClose, onRecordPayment }) {
 }
 
 export default function CustomersPage() {
-  const { customers = [], createCustomer, updateCustomer, deleteCustomer, recordPayment } = useData() || {};
   const { user } = useAuth() || {};
   const role = user?.role || 'staff';
   const isAdmin = role === 'admin';
   const isStaff = role === 'staff';
 
+  const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
-  const [filtered, setFiltered] = useState(customers || []);
+  const [filtered, setFiltered] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // load customers
+  const loadCustomers = async () => {
+    setLoading(true);
+    try {
+      const resp = await api.get('/customers/');
+      const data = Array.isArray(resp.data) ? resp.data : (resp.data.results ?? resp.data.data ?? []);
+      setCustomers(data);
+    } catch (err) {
+      console.error('Failed to load customers', err);
+      alert('Could not fetch customers. Check backend and CORS. ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadCustomers(); }, []);
 
   useEffect(() => setFiltered(customers || []), [customers]);
 
   useEffect(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return setFiltered(customers || []);
-    const result = (customers || []).filter((c) =>
+    if (!q) { setFiltered(customers); return; }
+    const res = (customers || []).filter((c) =>
       (c.name || '').toLowerCase().includes(q) ||
       (c.phone || '').toLowerCase().includes(q) ||
       (c.email || '').toLowerCase().includes(q)
     );
-    setFiltered(result);
+    setFiltered(res);
   }, [search, customers]);
 
   const stats = useMemo(() => {
     const total = (customers || []).length;
-    const withCredit = (customers || []).filter(c => (Number(c.credit_limit) || 0) > 0).length;
-    const outstanding = (customers || []).reduce((s, c) => s + (Number(c.outstanding) || 0), 0);
-    return { total, withCredit, outstanding };
+    const withCredit = (customers || []).filter(c => (Number(c.credited_amount) || 0) > 0).length;
+    const totalCredited = (customers || []).reduce((s, c) => s + (Number(c.credited_amount) || 0), 0);
+    return { total, withCredit, totalCredited };
   }, [customers]);
 
-  function openAdd() {
-    setSelected(null);
-    setEditOpen(true);
-  }
-  function openEdit(c) {
-    setSelected(c);
-    setEditOpen(true);
-  }
-  function openPay(c) {
-    setSelected(c);
-    setPayOpen(true);
+  function openAdd() { setSelected(null); setEditOpen(true); }
+  function openEdit(c) { setSelected(c); setEditOpen(true); }
+  function openPay(c) { setSelected(c); setPayOpen(true); }
+
+  // create
+  async function createCustomer(payload) {
+    try {
+      const resp = await api.post('/customers/', payload);
+      setCustomers(prev => [resp.data, ...prev]);
+      return resp.data;
+    } catch (err) {
+      console.error('createCustomer error', err);
+      throw err;
+    }
   }
 
-  async function handleSaveCustomer(payload) {
-    if (selected && selected.id) {
-      // update
-      if (typeof updateCustomer === 'function') {
-        try {
-          await updateCustomer(selected.id, payload);
-          alert('Customer saved');
-        } catch (err) {
-          console.error(err);
-          alert('Save failed');
-        }
-      } else {
-        console.log('Update prepared:', selected.id, payload);
-        alert('Saved (mock) — implement updateCustomer in DataContext.');
-      }
-    } else {
-      // create
-      if (typeof createCustomer === 'function') {
-        try {
-          await createCustomer(payload);
-          alert('Customer added');
-        } catch (err) {
-          console.error(err);
-          alert('Create failed');
-        }
-      } else {
-        console.log('Create prepared:', payload);
-        alert('Customer created (mock).');
-      }
+  // update
+  async function updateCustomer(id, patch) {
+    try {
+      const resp = await api.patch(`/customers/${id}/`, patch);
+      const updated = resp.data;
+      setCustomers(prev => prev.map(c => String(c.id) === String(id) ? updated : c));
+      return updated;
+    } catch (err) {
+      console.error('updateCustomer error', err);
+      throw err;
     }
-    setEditOpen(false);
+  }
+
+  // delete
+  async function deleteCustomer(id) {
+    try {
+      await api.delete(`/customers/${id}/`);
+      setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
+      return true;
+    } catch (err) {
+      console.error('deleteCustomer error', err);
+      throw err;
+    }
+  }
+
+  /**
+   * recordPayment reduces credited_amount by `amount`.
+   * Strategy:
+   * 1) Try POST /customers/:id/payments/ (preferred)
+   * 2) Try POST /customer-payments/ (global)
+   * 3) Fallback: PATCH /customers/:id/ with credited_amount = max(0, current - amount)
+   */
+  async function recordPayment({ customerId, amount, note }) {
+    if (!customerId) throw new Error('Missing customerId');
+    if (!amount || Number(amount) <= 0) throw new Error('Invalid amount');
+
+    const existing = customers.find(c => String(c.id) === String(customerId)) || {};
+    const currentCredited = Number(existing.credited_amount || 0);
+    const newCredited = Math.max(0, +(currentCredited - Number(amount)).toFixed(2));
+
+    // 1) nested payments endpoint
+    try {
+      const resp = await api.post(`/customers/${customerId}/payments/`, { amount, note });
+      // If server returns updated customer, use it; otherwise reload customer list
+      if (resp.data?.customer) {
+        setCustomers(prev => prev.map(c => String(c.id) === String(customerId) ? resp.data.customer : c));
+      } else {
+        await loadCustomers();
+      }
+      return resp.data;
+    } catch (err) {
+      console.warn('nested payments endpoint failed or not available', err?.response?.status);
+    }
+
+    // 2) global payments endpoint
+    try {
+      const resp = await api.post(`/customer-payments/`, { customer: customerId, amount, note });
+      if (resp.data?.customer) {
+        setCustomers(prev => prev.map(c => String(c.id) === String(customerId) ? resp.data.customer : c));
+      } else {
+        await loadCustomers();
+      }
+      return resp.data;
+    } catch (err) {
+      console.warn('global customer-payments endpoint failed or not available', err?.response?.status);
+    }
+
+    // 3) fallback: patch credited_amount
+    try {
+      const resp = await api.patch(`/customers/${customerId}/`, { credited_amount: newCredited });
+      setCustomers(prev => prev.map(c => String(c.id) === String(customerId) ? resp.data : c));
+      return resp.data;
+    } catch (err) {
+      console.error('recordPayment fallback (patch credited_amount) failed', err);
+      throw new Error(
+        `Recording payment failed. Server needs a payments endpoint (POST /customers/:id/payments/ or POST /customer-payments/) or allow PATCH on credited_amount.`
+      );
+    }
+  }
+
+  // Handlers used by UI
+  async function handleSaveCustomer(payload) {
+    try {
+      if (selected && selected.id) {
+        if (!isAdmin) return alert('Only admins can edit customer credit information.');
+        await updateCustomer(selected.id, payload);
+        alert('Customer saved');
+      } else {
+        await createCustomer(payload);
+        alert('Customer added');
+      }
+      setEditOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Save failed: ' + (err?.response?.data?.detail || err.message || String(err)));
+    }
   }
 
   async function handleDeleteCustomer(c) {
     if (!isAdmin) return alert('Only admins can delete customers.');
     if (!window.confirm(`Delete customer "${c.name}"? This cannot be undone.`)) return;
-    if (typeof deleteCustomer === 'function') {
-      try {
-        await deleteCustomer(c.id);
-        alert('Deleted');
-      } catch (err) {
-        console.error(err);
-        alert('Delete failed');
-      }
-    } else {
-      console.log('Delete prepared:', c);
-      alert('Delete (mock) — implement deleteCustomer in DataContext.');
+    try {
+      await deleteCustomer(c.id);
+      alert('Deleted');
+    } catch (err) {
+      console.error(err);
+      alert('Delete failed: ' + (err?.response?.data || err.message || String(err)));
     }
   }
 
   async function handleRecordPayment({ customerId, amount, note }) {
-    if (typeof recordPayment === 'function') {
-      try {
-        await recordPayment(customerId, { amount, note });
-        alert('Payment recorded');
-      } catch (err) {
-        console.error(err);
-        alert('Payment failed');
-      }
-    } else {
-      // fallback: log and show mock update
-      console.log('Record payment prepared:', { customerId, amount, note });
-      alert('Payment recorded (mock). Implement recordPayment in DataContext to persist.');
+    try {
+      await recordPayment({ customerId, amount, note });
+      alert('Payment recorded — credited amount reduced');
+      setPayOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Payment failed. Check backend support for payments or credited_amount patching.');
     }
-    setPayOpen(false);
   }
 
+  // render list
   return (
     <div className="cu-page">
       <div className="cu-header">
@@ -301,15 +379,14 @@ export default function CustomersPage() {
         </div>
 
         <div className="cu-actions">
-          {/* Admin can add; staff can also add but with limited fields */}
-          <button className="btn btn-primary" onClick={openAdd}><Plus size={14} /> Add Customer</button>
+          <button className="btn btn-primary" onClick={() => openAdd()}><Plus size={14} /> Add Customer</button>
         </div>
       </div>
 
       <div className="cu-stats-row">
         <StatCard title="Total Customers" value={stats.total} colorClass="c-blue" />
         <StatCard title="Customers with Credit" value={stats.withCredit} colorClass="c-orange" />
-        <StatCard title="Total Outstanding" value={`Rs ${stats.outstanding.toFixed(2)}`} colorClass="c-red" />
+        <StatCard title="Total Credited" value={`Rs ${stats.totalCredited.toFixed(2)}`} colorClass="c-red" />
       </div>
 
       <div className="cu-search-row">
@@ -331,26 +408,24 @@ export default function CustomersPage() {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Email</th>
-                <th>Credit Limit</th>
-                <th>Outstanding</th>
+                <th>Credited amount</th>
                 <th>Status</th>
                 <th className="cu-actions-col">Actions</th>
               </tr>
             </thead>
 
             <tbody>
+              {loading && <tr><td colSpan="6">Loading…</td></tr>}
               {filtered.map((c) => {
-                const outstanding = Number(c.outstanding || 0);
-                const limit = Number(c.credit_limit || 0);
-                const status = outstanding > 0 ? 'Has outstanding' : 'Clear';
+                const credited = Number(c.credited_amount || 0);
+                const status = credited > 0 ? 'Has credit' : 'Clear';
                 return (
                   <tr key={c.id}>
                     <td className="cu-name">{c.name}</td>
                     <td>{c.phone || '—'}</td>
                     <td>{c.email || '—'}</td>
-                    <td>{isAdmin ? `₨ ${limit.toFixed(2)}` : (limit > 0 ? 'Has credit' : '—')}</td>
-                    <td className="cu-outstanding">{outstanding > 0 ? <span className="cu-out-red">₨ {outstanding.toFixed(2)}</span> : '₨ 0.00'}</td>
-                    <td><span className={`cu-status ${outstanding > 0 ? 'warn' : 'clear'}`}>{status}</span></td>
+                    <td>{isAdmin ? `₨ ${credited.toFixed(2)}` : (credited > 0 ? 'Has credit' : '—')}</td>
+                    <td><span className={`cu-status ${credited > 0 ? 'warn' : 'clear'}`}>{status}</span></td>
                     <td className="cu-actions-col">
                       <button className="icon-btn" title="View / Edit" onClick={() => openEdit(c)}><Edit2 size={16} /></button>
                       <button className="icon-btn" title="Record Payment" onClick={() => openPay(c)}><DollarSign size={16} /></button>
@@ -360,17 +435,14 @@ export default function CustomersPage() {
                 );
               })}
 
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan="7" className="cu-empty">No customers found.</td>
-                </tr>
+              {filtered.length === 0 && !loading && (
+                <tr><td colSpan="6" className="cu-empty">No customers found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* modals */}
       <CustomerModal open={editOpen} customer={selected} onClose={() => setEditOpen(false)} onSave={handleSaveCustomer} isAdmin={isAdmin} />
       <PaymentModal open={payOpen} customer={selected} onClose={() => setPayOpen(false)} onRecordPayment={handleRecordPayment} />
     </div>

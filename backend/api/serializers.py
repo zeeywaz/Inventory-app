@@ -8,13 +8,29 @@ User = get_user_model()
 #
 # Basic serializers
 #
+
+
 class UserSerializer(serializers.ModelSerializer):
+    # expose a computed full_name so serializers referencing "full_name" keep working
+    full_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = User
-        # expose only safe fields
-        fields = ('id', 'username', 'full_name', 'email', 'role', 'is_active')
+        # include first_name/last_name as well if you need them
+        fields = ('id', 'username', 'full_name', 'first_name', 'last_name', 'email', 'role', 'is_active')
         read_only_fields = ('id',)
 
+    def get_full_name(self, obj):
+        # AbstractUser defines get_full_name(), which joins first_name + last_name.
+        # Fall back to username if both are blank.
+        name = obj.get_full_name() if hasattr(obj, 'get_full_name') else None
+        if name:
+            name = name.strip()
+        if not name:
+            # try concatenating fields manually, or fall back to username
+            parts = filter(None, [getattr(obj, 'first_name', ''), getattr(obj, 'last_name', '')])
+            name = " ".join(parts).strip() or getattr(obj, 'username', '')
+        return name
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,7 +60,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'sku', 'name', 'description', 'cost_price', 'selling_price',
             'minimum_selling_price', 'quantity_in_stock',
-            'is_active', 'created_at', 'updated_at', 'is_out_of_stock'
+            'is_active', 'created_at', 'updated_at', 'is_out_of_stock', 'vehicle'
         )
         read_only_fields = ('id', 'created_at', 'updated_at', 'is_out_of_stock')
 
@@ -220,19 +236,47 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 # Inquiry + payments
 #
 class InquiryPaymentSerializer(serializers.ModelSerializer):
+    # optional: show created_by username instead of id
+    created_by = serializers.StringRelatedField(read_only=True)
+
     class Meta:
         model = models.InquiryPayment
-        fields = ('id', 'inquiry', 'amount', 'payment_date', 'payment_method', 'reference', 'created_by', 'created_at')
-        read_only_fields = ('id', 'payment_date', 'created_by', 'created_at')
+        # DON'T include created_at here because your table doesn't have that column.
+        fields = (
+            'id',
+            'inquiry',        # will be inquiry id (FK)
+            'amount',
+            'payment_date',
+            'payment_method',
+            'reference',
+            'created_by',
+        )
+        read_only_fields = ('id', 'payment_date', 'created_by')
 
 
 class InquirySerializer(serializers.ModelSerializer):
-    payments = InquiryPaymentSerializer(many=True, read_only=True)
+    # Use the default reverse accessor name for InquiryPayment if you didn't set related_name.
+    # Default is 'inquirypayment_set'. If your model sets related_name='payments', change source accordingly.
+    payments = InquiryPaymentSerializer(many=True, read_only=True, source='inquirypayment_set')
 
     class Meta:
         model = models.Inquiry
-        fields = ('id', 'inquiry_no', 'customer', 'contact_name', 'contact_phone', 'product_description',
-                  'expected_price', 'advance_amount', 'advance_received', 'status', 'assigned_to', 'notes', 'created_at', 'payments')
+        fields = (
+            'id',
+            'inquiry_no',
+            'customer',
+            'contact_name',
+            'contact_phone',
+            'product_description',
+            'expected_price',
+            'advance_amount',
+            'advance_received',
+            'status',
+            'assigned_to',
+            'notes',
+            'created_at',
+            'payments',
+        )
         read_only_fields = ('id', 'created_at', 'payments')
 
 #
@@ -264,8 +308,20 @@ class ExpenseSerializer(serializers.ModelSerializer):
 class SupplierPaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SupplierPayment
-        fields = ('id', 'supplier', 'purchase_order', 'amount', 'payment_date', 'payment_method', 'reference', 'created_by', 'notes', 'created_at')
-        read_only_fields = ('id', 'payment_date', 'created_at', 'created_by')
+        # do not include created_at — model uses payment_date instead
+        fields = (
+            'id',
+            'supplier',
+            'purchase_order',
+            'amount',
+            'payment_date',
+            'payment_method',
+            'reference',
+            'created_by',
+            'notes',
+        )
+        read_only_fields = ('id', 'payment_date', 'created_by')
+
 
 
 class InventoryMovementSerializer(serializers.ModelSerializer):

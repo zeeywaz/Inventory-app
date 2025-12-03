@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import '../styles/product.css';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../api'; // axios client configured with baseURL and token/refresh logic
 import {
   Plus,
   Search,
@@ -24,10 +25,6 @@ function StatCard({ title, value, colorClass }) {
   );
 }
 
-function CategoryBadge({ children }) {
-  return <span className="pi-badge">{children}</span>;
-}
-
 /* ---------------------------
    Modals (unchanged markup, wired to callbacks)
    --------------------------- */
@@ -36,12 +33,11 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
   const [form, setForm] = useState({
     name: '',
     sku: '',
-    category: '',
     quantity_in_stock: 0,
     cost_price: '',
     selling_price: '',
     min_selling_price: '',
-    vehicle_for: '',
+    vehicle: '',
   });
 
   useEffect(() => {
@@ -49,23 +45,21 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
       setForm({
         name: product.name || '',
         sku: product.sku || '',
-        category: product.category || '',
         quantity_in_stock: product.quantity_in_stock ?? 0,
         cost_price: product.cost_price ?? '',
         selling_price: product.selling_price ?? '',
         min_selling_price: product.minimum_selling_price ?? product.min_selling_price ?? '',
-        vehicle_for: product.vehicle_for || product.vehicle || '',
+        vehicle: product.vehicle || '',
       });
     } else {
       setForm({
         name: '',
         sku: '',
-        category: '',
         quantity_in_stock: 0,
         cost_price: '',
         selling_price: '',
         min_selling_price: '',
-        vehicle_for: '',
+        vehicle: '',
       });
     }
   }, [product, open]);
@@ -82,12 +76,11 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
     const payload = {
       name: form.name,
       sku: form.sku,
-      category: form.category || null,
       quantity_in_stock: Number(form.quantity_in_stock || 0),
       cost_price: form.cost_price === '' ? 0 : Number(form.cost_price),
       selling_price: form.selling_price === '' ? 0 : Number(form.selling_price),
       minimum_selling_price: form.min_selling_price === '' ? 0 : Number(form.min_selling_price),
-      vehicle_for: form.vehicle_for || null,
+      vehicle: form.vehicle || null,
     };
     onSave(payload);
   }
@@ -111,11 +104,6 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
               <div className="pi-field-label">SKU</div>
               <input value={form.sku} onChange={updateField('sku')} placeholder="CF-HOOD-001" />
             </label>
-
-            <label className="pi-field">
-              <div className="pi-field-label">Category</div>
-              <input value={form.category} onChange={updateField('category')} placeholder="Body Kit" />
-            </label>
           </div>
 
           <div className="pi-row">
@@ -126,7 +114,7 @@ function EditProductModal({ open, product = null, onClose, onSave }) {
 
             <label className="pi-field">
               <div className="pi-field-label">Vehicle</div>
-              <input value={form.vehicle_for} onChange={updateField('vehicle_for')} placeholder="Honda Civic 2016-2021" />
+              <input value={form.vehicle} onChange={updateField('vehicle')} placeholder="Honda Civic 2016-2021" />
             </label>
           </div>
 
@@ -203,43 +191,45 @@ export default function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // base API helper (attach bearer token if available)
-  const apiFetch = async (path, opts = {}) => {
-    const base = window.__BACKEND_BASE_URL__ || ''; // optional global base
-    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${base}${path}`, { credentials: 'same-origin', ...opts, headers });
-    if (!res.ok) {
-      const text = await res.text().catch(()=>null);
-      let err = text || res.statusText || `HTTP ${res.status}`;
-      throw new Error(err);
-    }
-    // Return parsed JSON when possible
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return res.json();
-    return null;
+  // --- Axios-based helpers using shared api client ---
+  const apiGet = async (path, params = {}) => {
+    const resp = await api.get(path, { params });
+    return resp.data;
+  };
+  const apiPost = async (path, body) => {
+    const resp = await api.post(path, body);
+    return resp.data;
+  };
+  const apiPatch = async (path, body) => {
+    const resp = await api.patch(path, body);
+    return resp.data;
+  };
+  const apiDelete = async (path) => {
+    const resp = await api.delete(path);
+    return resp;
   };
 
   // fetch products
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch('/api/products/');
-      // backend likely returns { results: [...]} when using pagination; handle both
+      // We expect backend route: GET /api/products/
+      const data = await apiGet('/products/');
+      // backend may return array or paginated { results: [...] }
       const items = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
       setProducts(items);
     } catch (err) {
       console.error('Failed fetching products', err);
-      // fallback: keep existing products (or empty)
-      alert('Could not fetch products from backend. Check server and CORS.');
+      const backendMsg = err?.response?.data ? JSON.stringify(err.response.data) : err.message || String(err);
+      alert('Could not fetch products from backend. ' + backendMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadProducts(); }, []); // once
+  useEffect(() => { loadProducts(); }, []); // load once on mount
 
-  // search/filter
+  // client-side search/filter (category removed)
   useEffect(() => {
     const q = search.trim().toLowerCase();
     if (!q) { setFiltered(products); return; }
@@ -247,8 +237,7 @@ export default function ProductsPage() {
       return (
         (p.name || '').toString().toLowerCase().includes(q) ||
         (p.sku || '').toString().toLowerCase().includes(q) ||
-        (p.category || '').toString().toLowerCase().includes(q) ||
-        (p.vehicle_for || p.vehicle || '').toString().toLowerCase().includes(q)
+        (p.vehicle || '').toString().toLowerCase().includes(q)
       );
     }));
   }, [search, products]);
@@ -284,65 +273,83 @@ export default function ProductsPage() {
      --------------------------- */
 
   async function createProduct(payload) {
-    // map to backend names: minimum_selling_price etc.
     const body = {
       name: payload.name,
       sku: payload.sku,
-      category: payload.category,
       quantity_in_stock: payload.quantity_in_stock,
       cost_price: payload.cost_price,
       selling_price: payload.selling_price,
       minimum_selling_price: payload.minimum_selling_price ?? payload.min_selling_price ?? 0,
-      vehicle_for: payload.vehicle_for,
+      vehicle: payload.vehicle ?? null,
     };
-    const newProd = await apiFetch('/api/products/', { method: 'POST', body: JSON.stringify(body) });
-    // append returned product
-    const created = Array.isArray(newProd) ? newProd[0] : newProd;
-    setProducts(prev => [created, ...prev]);
-    return created;
+    try {
+      const created = await apiPost('/products/', body);
+      setProducts(prev => [created, ...prev]);
+      return created;
+    } catch (err) {
+      console.error('createProduct error', err);
+      const msg = err?.response?.data?.detail || err?.response?.data || err.message || String(err);
+      throw new Error(msg);
+    }
   }
 
   async function updateProduct(id, patch) {
-    // Admin: can patch any field. Staff should not call this method (UI prevents it).
     const body = { ...patch };
-    // map possible client keys to backend keys
     if (body.min_selling_price !== undefined) {
       body.minimum_selling_price = body.min_selling_price;
       delete body.min_selling_price;
     }
-    const updated = await apiFetch(`/api/products/${id}/`, { method: 'PATCH', body: JSON.stringify(body) });
-    setProducts(prev => prev.map(p => (String(p.id) === String(id) ? updated : p)));
-    return updated;
+
+    // ensure canonical vehicle key (if someone still passes vehicle_for)
+    if (body.vehicle === undefined && body.vehicle_for !== undefined) {
+      body.vehicle = body.vehicle_for;
+      delete body.vehicle_for;
+    }
+
+    try {
+      const updated = await apiPatch(`/products/${id}/`, body);
+      setProducts(prev => prev.map(p => (String(p.id) === String(id) ? updated : p)));
+      return updated;
+    } catch (err) {
+      console.error('updateProduct error', err);
+      const msg = err?.response?.data?.detail || err?.response?.data || err.message || String(err);
+      throw new Error(msg);
+    }
   }
 
   async function deleteProduct(id) {
-    await apiFetch(`/api/products/${id}/`, { method: 'DELETE' });
-    setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
-    return true;
+    try {
+      await apiDelete(`/products/${id}/`);
+      setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
+      return true;
+    } catch (err) {
+      console.error('deleteProduct error', err);
+      const msg = err?.response?.data?.detail || err?.response?.data || err.message || String(err);
+      throw new Error(msg);
+    }
   }
 
   async function updateStock(productId, { quantity_in_stock }) {
-    // We use the adjust-stock endpoint — this will create inventory movement on backend
     try {
-      // compute change: need current product quantity
       const existing = products.find(p => String(p.id) === String(productId));
       const currentQty = existing ? (existing.quantity_in_stock ?? 0) : 0;
       const change = Number(quantity_in_stock) - Number(currentQty);
 
-      // If backend supports direct PATCH to product for staff you could do:
-      // await apiFetch(`/api/products/${productId}/`, { method: 'PATCH', body: JSON.stringify({ quantity_in_stock }) });
+      // Preferred: call adjust-stock action which creates inventory movement
+      try {
+        await apiPost(`/products/${productId}/adjust-stock/`, { change, reason: 'Stock updated via UI' });
+      } catch (innerErr) {
+        // If backend lacks adjust-stock action, fallback to PATCHing product qty
+        console.warn('adjust-stock failed, falling back to product patch', innerErr);
+        await apiPatch(`/products/${productId}/`, { quantity_in_stock });
+      }
 
-      // preferable: call adjust-stock with integer change
-      await apiFetch(`/api/products/${productId}/adjust-stock/`, {
-        method: 'POST',
-        body: JSON.stringify({ change, reason: 'Stock updated via UI' })
-      });
-
-      // Refresh product list item or whole list
+      // refresh (could optimize to fetch only one product)
       await loadProducts();
     } catch (err) {
       console.error('updateStock error', err);
-      throw err;
+      const msg = err?.response?.data?.detail || err?.response?.data || err.message || String(err);
+      throw new Error(msg);
     }
   }
 
@@ -425,7 +432,7 @@ export default function ProductsPage() {
       <div className="pi-search-row">
         <div className="pi-search">
           <Search size={18} className="pi-search-icon" />
-          <input placeholder="Search products by name, SKU, category, or vehicle..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input placeholder="Search products by name, SKU, or vehicle..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -440,7 +447,6 @@ export default function ProductsPage() {
               <tr>
                 <th>Product</th>
                 <th>SKU</th>
-                <th>Category</th>
                 <th>Stock</th>
                 {isAdmin && <th>Cost</th>}
                 <th>Price</th>
@@ -451,7 +457,7 @@ export default function ProductsPage() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={isAdmin ? 9 : 8} className="pi-empty">Loading products...</td></tr>
+                <tr><td colSpan={isAdmin ? 8 : 7} className="pi-empty">Loading products...</td></tr>
               )}
 
               {!loading && displayed.map((p) => {
@@ -464,7 +470,6 @@ export default function ProductsPage() {
                       <div className="pi-prod-name">{p.name}</div>
                     </td>
                     <td>{p.sku || '—'}</td>
-                    <td><CategoryBadge>{p.category || '—'}</CategoryBadge></td>
                     <td>
                       <div className="pi-stock-wrap">
                         <span className="pi-stock-count">{stock}</span>
@@ -477,7 +482,7 @@ export default function ProductsPage() {
 
                     <td>₨ {Number(p.selling_price ?? 0).toFixed(2)}</td>
                     <td className="pi-min-price">₨ {Number(minPrice).toFixed(2)}</td>
-                    <td>{p.vehicle_for ?? p.vehicle ?? 'Universal'}</td>
+                    <td>{p.vehicle ?? 'Universal'}</td>
 
                     <td className="pi-actions-col">
                       {isAdmin ? (
@@ -497,7 +502,7 @@ export default function ProductsPage() {
 
               {!loading && displayed.length === 0 && (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="pi-empty">No products found.</td>
+                  <td colSpan={isAdmin ? 8 : 7} className="pi-empty">No products found.</td>
                 </tr>
               )}
             </tbody>

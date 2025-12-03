@@ -40,9 +40,8 @@ html, body, #root {
   justify-content: center;
 
   /* background fills whole viewport and stays fixed */
-  background:
-    radial-gradient(circle at 10% 10%, rgba(10,20,40,0.65), transparent 20%),
-    linear-gradient(180deg, var(--am-bg), #071026 80%);
+  background:  
+  (180deg, var(--am-bg), #071026 80%);
   background-repeat: no-repeat;
   background-position: center center;
   background-size: cover;

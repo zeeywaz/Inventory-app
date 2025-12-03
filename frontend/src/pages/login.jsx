@@ -1,24 +1,23 @@
 // src/pages/login.jsx
 import React, { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import "../styles/login.css";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const auth = useAuth();
+  const auth = useAuth(); 
 
   // UI state
-  const [step, setStep] = useState("login");
-  const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // form state
+  // Form state
   const [form, setForm] = useState({ username: "", password: "" });
-  const [otpEmail, setOtpEmail] = useState("");
   const [err, setErr] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
 
+  // Disable button if fields are empty
   const canSubmit = useMemo(() => {
     return form.username.trim().length > 0 && form.password.trim().length > 0;
   }, [form]);
@@ -27,13 +26,14 @@ export default function LoginPage() {
     return (e) => {
       const value = e?.target ? e.target.value : e;
       setForm((f) => ({ ...f, [field]: value }));
-      setErr("");
+      if (err) setErr("");
     };
   }
 
   async function onSubmit(e) {
     e.preventDefault();
     setErr("");
+    
     if (!canSubmit) {
       setErr("Please enter username and password.");
       return;
@@ -41,32 +41,46 @@ export default function LoginPage() {
 
     try {
       setIsLoading(true);
-      await new Promise((r) => setTimeout(r, 600)); // simulate network
+      
+      // 1. Call the AuthContext
+      // We wait for the login function to finish.
+      // It returns the user object from the backend (including 'role').
+      const userData = await auth.login(form.username, form.password);
+      
+      // 2. CHECK THE ROLE [New Logic]
+      // We can now see exactly who logged in.
+      console.log("Login Successful!");
+      console.log("User:", userData.username);
+      console.log("Role:", userData.role); // This will print 'admin' or 'staff'
 
-      const { username, password } = form;
-      if (
-        (username === "admin" && password === "admin123") ||
-        (username === "staff" && password === "staff123")
-      ) {
-        // demo user object — normalized role set here
-        const demoUser = {
-          username,
-          role: username === "admin" ? "admin" : "staff",
-          token: "demo-token",
-        };
+      // Optional: You could redirect differently based on role
+      // if (userData.role === 'admin') navigate('/admin-dashboard');
+      
+      // 3. Navigate to the main dashboard
+      navigate("/", { replace: true });
 
-        // set user in AuthContext
-        auth.login(demoUser);
-
-        // navigate to root — ProtectedRoutes will render the correct dashboard
-        navigate("/", { replace: true });
-        return;
-      }
-
-      setErr("Invalid username or password.");
     } catch (error) {
-      console.error(error);
-      setErr("Login error — try again.");
+      console.error("Login Error Details:", error); // Detailed log for debugging
+
+      // --- ERROR HANDLING ---
+      if (error.response) {
+        // The server responded with a status code
+        if (error.response.status === 401) {
+          setErr("Invalid username or password.");
+        } else if (error.response.status === 400) {
+           setErr("Missing credentials.");
+        } else if (error.response.status === 500) {
+           setErr("Server error (500). Please check backend terminal.");
+        } else {
+          setErr(`Login failed (Error ${error.response.status}).`);
+        }
+      } else if (error.request) {
+        // The request was made but no response received (Backend down / CORS issue)
+        setErr("Unable to reach the server. Is Django running?");
+      } else {
+        // Something else happened
+        setErr("An unexpected error occurred.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -84,82 +98,65 @@ export default function LoginPage() {
           <p className="auth-subtitle">Manage your Inventory Efficiently</p>
         </header>
 
-        {step === "login" && (
-          <form className="auth-form" onSubmit={onSubmit} noValidate>
-            <div className="auth-field">
-              <input
-                type="text"
-                placeholder="Username"
-                className="auth-input"
-                value={form.username}
-                onChange={update("username")}
-                required
-              />
-            </div>
-
-            <div className="auth-field auth-field--password">
-              <input
-                type={showPwd ? "text" : "password"}
-                placeholder="Password"
-                className="auth-input"
-                value={form.password}
-                onChange={update("password")}
-                required
-              />
-              <button
-                type="button"
-                className="auth-toggle"
-                onClick={() => setShowPwd((v) => !v)}
-                aria-pressed={showPwd}
-              >
-                {showPwd ? "Hide" : "Show"}
-              </button>
-            </div>
-
-            <div className="auth-links">
-              <button
-                type="button"
-                className="auth-link-btn"
-                onClick={() => {
-                  setOtpEmail(form.username || "");
-                  setStep("requestOtp");
-                }}
-              >
-                Forgot Password?
-              </button>
-
-              <Link to="/help" className="auth-link-btn" style={{ textDecoration: "none" }}>
-                Need help?
-              </Link>
-            </div>
-
-            {err && <p className="auth-error" role="alert">{err}</p>}
-
-            <button type="submit" className="auth-btn" disabled={!canSubmit || isLoading}>
-              {isLoading ? "Logging in..." : "Sign In"}
-            </button>
-
-            <div className="auth-demo" style={{ marginTop: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Demo Credentials:</div>
-              <div className="small">Admin: <strong>admin</strong> / <em>admin123</em></div>
-              <div className="small">Staff: <strong>staff</strong> / <em>staff123</em></div>
-            </div>
-          </form>
-        )}
-
-        {step === "requestOtp" && (
-          <div className="auth-form">
-            <p className="text-muted">Enter your username or email to request password reset OTP.</p>
-            <div className="auth-field">
-              <input type="text" className="auth-input" placeholder="Username or email" value={otpEmail} onChange={(e)=>setOtpEmail(e.target.value)} />
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="auth-btn" onClick={() => { setStep("login"); }}>Request OTP</button>
-              <button className="auth-link-btn" onClick={() => setStep("login")}>Back</button>
-            </div>
+        <form className="auth-form" onSubmit={onSubmit} noValidate>
+          {/* Username Field */}
+          <div className="auth-field">
+            <input
+              type="text"
+              placeholder="Username"
+              className="auth-input"
+              value={form.username}
+              onChange={update("username")}
+              required
+              autoComplete="username"
+              disabled={isLoading}
+            />
           </div>
-        )}
+
+          {/* Password Field */}
+          <div className="auth-field auth-field--password">
+            <input
+              type={showPwd ? "text" : "password"}
+              placeholder="Password"
+              className="auth-input"
+              value={form.password}
+              onChange={update("password")}
+              required
+              autoComplete="current-password"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              className="auth-toggle"
+              onClick={() => setShowPwd((v) => !v)}
+              aria-pressed={showPwd}
+              aria-label={showPwd ? "Hide password" : "Show password"}
+              tabIndex={-1} 
+            >
+              {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          <div className="auth-links">
+            {/* Future Forgot Password Link */}
+          </div>
+
+          {/* Error Message Display */}
+          {err && (
+            <div className="auth-error" role="alert">
+              {err}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            className="auth-btn" 
+            disabled={!canSubmit || isLoading}
+          >
+            {isLoading ? "Logging in..." : "Sign In"}
+          </button>
+        </form>
+
       </section>
     </main>
   );

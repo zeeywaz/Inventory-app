@@ -1,19 +1,37 @@
 # api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
-from .views import ProductViewSet, AttendanceViewSet, EmployeeViewSet, health_check
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+from .views import (
+    ProductViewSet, AttendanceViewSet, EmployeeViewSet, CustomerViewSet,
+    SupplierViewSet, health_check, SupplierPaymentViewSet, InquiryViewSet,
+    ExpenseViewSet, PurchaseOrderViewSet, POLineViewSet, current_user 
+)
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'employees', EmployeeViewSet, basename='employee')
+router.register(r'customers', CustomerViewSet, basename='customer')
+router.register(r'suppliers', SupplierViewSet, basename='supplier')
+router.register(r'supplier-payments', SupplierPaymentViewSet, basename='supplierpayment')
+router.register(r'inquiries', InquiryViewSet, basename='inquiry')
+router.register(r'expenses', ExpenseViewSet, basename='expense')
+router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchaseorder')
+router.register(r'po-lines', POLineViewSet, basename='poline')
 
 urlpatterns = [
-    path('health/', health_check, name='api-health'),
+    # 1. The standard API routers
+    path('', include(router.urls)),
+
+    # 2. Authentication Endpoints (Connecting React to Django)
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/', include('rest_framework.urls', namespace='rest_framework')),
-    path('', include(router.urls)),
+    path('auth/me/', current_user, name='current_user'),
+
+    # 3. Utilities
+    path('health/', health_check, name='health-check'),
 ]

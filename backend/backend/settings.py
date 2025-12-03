@@ -52,7 +52,10 @@ INSTALLED_APPS = [
     'rest_framework', 
     'corsheaders',
     'api',
-    'rest_framework_simplejwt.token_blacklist'
+    
+    'rest_framework_simplejwt'
+
+    
 ]
 
 MIDDLEWARE = [
@@ -149,14 +152,10 @@ AUTH_USER_MODEL = 'api.User'
 
 # --- Django REST Framework config (add this) ---
 REST_FRAMEWORK = {
-    # Support JWT (if you keep it) and SessionAuthentication for browsable login
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',  # keep if you use JWT later
-        'rest_framework.authentication.SessionAuthentication',       # allow session cookies
-        'rest_framework.authentication.BasicAuthentication',         # helpful for curl / tools
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    # Default permission (you can override per-view)
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+        'rest_framework.permissions.IsAuthenticated',
     ),
 }

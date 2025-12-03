@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 import React from 'react';
 import './sidebar.css';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Settings,
@@ -22,22 +22,37 @@ import {
 
 export function Sidebar({ user: propUser, onLogout }) {
   const location = useLocation();
-  const activePage = (location.pathname || '/').toLowerCase();
-
-  // prefer prop user if passed, otherwise read from AuthContext
-  const auth = useAuth?.() ?? {};
-  const authUser = auth.user ?? null;
-  const user = propUser ?? authUser;
-
+  const navigate = useNavigate();
+  
+  // 1. Get the real Auth Context values
+  const { user: authUser, logout } = useAuth();
+  
+  // 2. Determine which user object to use (Prop vs Context)
+  const user = propUser || authUser;
   const role = (user?.role || '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isStaff = role === 'staff';
+  const activePage = (location.pathname || '/').toLowerCase();
+
+  // 3. The actual Logout Logic
+  const handleLogout = () => {
+    // Call the logout from AuthContext to clear tokens/state
+    logout();
+    
+    // If a parent component passed a custom handler, call it too
+    if (onLogout) {
+      onLogout();
+    }
+    
+    // Redirect to login page immediately
+    navigate('/login');
+  };
 
   // Helper to create a nav link
   const NavLink = ({ to, icon, text }) => {
     const normalizedTo = (to || '').toLowerCase();
-    const isActive = normalizedTo === '/'
-      ? activePage === '/'
+    // specific check for dashboard so it doesn't stay active on other pages
+    const isActive = normalizedTo === '/' 
+      ? activePage === '/' || activePage === '/dashboard'
       : activePage.startsWith(normalizedTo);
 
     return (
@@ -97,17 +112,26 @@ export function Sidebar({ user: propUser, onLogout }) {
       </div>
 
       <div className="sidebar-footer">
-        <div className="user-profile" title={user?.username ?? 'User'}>
+        <div className="user-profile" title={user?.username || 'User'}>
           <div className="user-avatar" aria-hidden>
             <User size={20} />
           </div>
           <div className="user-info">
-            <span className="user-name">{user?.name ?? user?.username ?? 'User'}</span>
-            <span className="user-role">{(user?.role ?? 'Role').toString()}</span>
+            <span className="user-name">
+               {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.username || 'User')}
+            </span>
+            <span className="user-role">
+              {user?.role ? user.role.toUpperCase() : 'STAFF'}
+            </span>
           </div>
         </div>
 
-        <button className="logout-button" onClick={onLogout} aria-label="Logout">
+        {/* Updated Logout Button */}
+        <button 
+          className="logout-button" 
+          onClick={handleLogout} 
+          aria-label="Logout"
+        >
           <LogOut size={18} />
           <span>Logout</span>
         </button>

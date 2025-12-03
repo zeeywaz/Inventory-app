@@ -115,8 +115,10 @@ class Product(models.Model):
     minimum_selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
     quantity_in_stock = models.PositiveIntegerField(default=0)  # no negatives
     is_active = models.BooleanField(default=True)
+    vehicle = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
 
     def __str__(self):
         return f"{self.name} ({self.sku or 'no-sku'})"
