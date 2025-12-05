@@ -406,7 +406,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     
 
 
-# paste this near the bottom of your api/views.py (after EmployeeViewSet / AttendanceViewSet)
+
 
 from decimal import Decimal, InvalidOperation
 from django.db.models import F
@@ -1081,3 +1081,84 @@ def current_user(request):
         "email": user.email,
         "role": getattr(user, 'role', None)
     })
+
+
+# add these imports to the top of api/views.py if not already present
+from rest_framework import viewsets, status, filters, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils.dateparse import parse_date
+from .serializers import SaleSerializer  # <- make sure this import is present
+
+# ---------- SalesViewSet ----------
+class SalesViewSet(viewsets.ModelViewSet):
+    """
+    Sales endpoints:
+      - list, retrieve, create, update, destroy
+      - filters: ?date=YYYY-MM-DD, ?customer=<id>, ?search=
+      - create uses the nested SaleSerializer (your serializers.SaleSerializer handles lines)
+    """
+    queryset = models.Sale.objects.all().order_by('-date', '-created_at')
+    serializer_class = SaleSerializer
+    # choose permission class you want. reuse IsAdminOrStockEditor so staff/admin can write.
+    permission_classes = [IsAdminOrStockEditor]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['sale_no', 'customer__name', 'created_by__username', 'lines__product_name']
+
+    def get_permissions(self):
+        # instantiate permission classes just like other viewsets in this file
+        return [perm() for perm in self.permission_classes]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        q_date = self.request.query_params.get('date')
+        customer = self.request.query_params.get('customer')
+        if q_date:
+            try:
+                d = parse_date(q_date)
+                if d:
+                    qs = qs.filter(date=d)
+            except Exception:
+                pass
+        if customer:
+            try:
+                qs = qs.filter(customer__id=int(customer))
+            except Exception:
+                pass
+        return qs
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['request'] = self.request
+        return ctx
+
+    def create(self, request, *args, **kwargs):
+        """
+        Use SaleSerializer.create() which already supports nested lines.
+        Ensure serializer receives request in context so created_by etc. work.
+        """
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        # attach created_by if authenticated
+        user = getattr(self.request, 'user', None)
+        if user and user.is_authenticated:
+            serializer.save(created_by=user)
+        else:
+            serializer.save()
+
+    # optional convenience: daily summary endpoint
+    @action(detail=False, methods=['get'], url_path='daily-summary', permission_classes=[permissions.IsAuthenticated])
+    def daily_summary(self, request):
+        q_date = request.query_params.get('date')
+        if not q_date:
+            return Response({"detail": "Provide ?date=YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        d = parse_date(q_date)
+        if not d:
+            return Response({"detail": "Invalid date format."}, status=status.HTTP_400_BAD_REQUEST)
+        qs = models.Sale.objects.filter(date=d)
+        total = qs.aggregate(total=Sum('total_amount'))['total'] or 0.0
+        return Response({"date": d.isoformat(), "count": qs.count(), "total": float(total)}, status=status.HTTP_200_OK)

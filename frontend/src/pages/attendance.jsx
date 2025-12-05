@@ -1,6 +1,7 @@
 // src/pages/attendance.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/attendance.css";
+import api from '../api'; // your configured api client
 
 /* ---------- Inline SVG Icon Components ---------- */
 const Plus = ({ className = "icon icon-sm" }) => (
@@ -57,19 +58,11 @@ const DollarSign = ({ className = "icon icon-md" }) => (
   </svg>
 );
 
-
-/* ---------- Mock initial employees ---------- */
-const INITIAL_EMPLOYEES = [
-  { id: "emp1", name: "Alice Smith", department: "Engineering", employeeId: "E1001", dailySalary: 3000 },
-  { id: "emp2", name: "Bob Johnson", department: "Marketing", employeeId: "E1002", dailySalary: 2500 },
-  { id: "emp3", name: "Charlie Lee", department: "HR", employeeId: "E1003", dailySalary: 2200 },
-];
-
 /* ---------- Small helpers ---------- */
 const todayISO = (d = new Date()) => d.toISOString().split("T")[0];
 const formatDateDisplay = (iso) => {
   try {
-    const d = new Date(iso.replace(/-/g, '/')); // Safer date parsing
+    const d = new Date(iso.replace(/-/g, '/'));
     return d.toLocaleDateString('en-LK', { year: 'numeric', month: 'long', day: 'numeric' });
   } catch {
     return iso;
@@ -77,55 +70,90 @@ const formatDateDisplay = (iso) => {
 };
 const initials = (name = "") =>
   name.split(" ").map(n => n[0] || "").slice(0,2).join("").toUpperCase();
-
 const formatCurrency = (amount) => `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 
 /* =========================
    Main Attendance Page
    ========================= */
 export default function AttendancePage() {
   // state
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
-  // UPDATED attendance structure
-  const [attendance, setAttendance] = useState([]); // array of { id, date, employeeId, status, payout }
+  const [employees, setEmployees] = useState([]);               // loaded from backend
+  const [attendance, setAttendance] = useState([]);           // loaded for selected date
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [isAttendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [selectedEmployeeDetail, setSelectedEmployeeDetail] = useState(null); // for detail view
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [savingAttendance, setSavingAttendance] = useState(false);
+  const [savingEmployee, setSavingEmployee] = useState(false);
 
   // derived
-  const todaysRecords = useMemo(() => attendance.filter(r => r.date === selectedDate), [attendance, selectedDate]);
-
-  const attendedEmployees = useMemo(() =>
-    todaysRecords.map(r => {
-      const emp = employees.find(e => e.id === r.employeeId);
-      // Pass the recorded payout, not the default salary
-      return emp ? { ...emp, status: r.status, payout: r.payout } : null;
-    }).filter(Boolean),
-    [todaysRecords, employees]
-  );
+  const todaysRecords = attendance || []; // each item from backend (employee, date, status, daily_salary_applied...)
+  const attendedEmployees = todaysRecords.map(r => {
+    const emp = employees.find(e => Number(e.id) === Number(r.employee) || String(e.id) === String(r.employee));
+    const payout = Number(r.daily_salary_applied || 0);
+    return emp ? { ...emp, status: r.status, payout } : null;
+  }).filter(Boolean);
 
   const presentCount = attendedEmployees.filter(e => e.status === "Present").length;
   const absentCount = attendedEmployees.filter(e => e.status === "Absent").length;
   const presentPercent = employees.length ? Math.round((presentCount / employees.length) * 100) : 0;
 
-  // UPDATED: Calculate total payout from the day's records
-  const totalPayoutToday = useMemo(() => {
-    return todaysRecords.reduce((acc, record) => {
-      // Only sum payout if they were marked present
-      return record.status === "Present" ? acc + record.payout : acc;
-    }, 0);
-  }, [todaysRecords]);
+  // total payout based on today's records
+  const totalPayoutToday = todaysRecords.reduce((acc, r) => {
+    return acc + ((r.status === 'Present') ? (Number(r.daily_salary_applied || 0)) : 0);
+  }, 0);
 
   const filteredEmployees = employees.filter(e =>
-    (e.name + " " + e.department + " " + e.employeeId).toLowerCase().includes(query.toLowerCase())
+    (e.name + " " + e.department + " " + (e.employee_code || e.employeeId || '')).toLowerCase().includes(query.toLowerCase())
   );
 
   const activeStaffCount = employees.length;
 
-  /* ---------- Employee CRUD ---------- */
+  /* ---------- Load data ---------- */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        await Promise.all([loadEmployees(), loadAttendance(selectedDate)]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []); // load once
+
+  // reload attendance when selectedDate changes
+  useEffect(() => {
+    loadAttendance(selectedDate);
+  }, [selectedDate]);
+
+  async function loadEmployees() {
+    try {
+      const resp = await api.get('/employees/');
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? [];
+      setEmployees(raw);
+    } catch (err) {
+      console.error('Failed to load employees', err);
+      alert('Could not load employees: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    }
+  }
+
+  async function loadAttendance(date) {
+    try {
+      const resp = await api.get('/attendance/', { params: { date } });
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? resp.data;
+      setAttendance(raw || []);
+    } catch (err) {
+      console.error('Failed to load attendance', err);
+      setAttendance([]);
+    }
+  }
+
+  /* ---------- Employee CRUD & Detail ---------- */
   function openAddEmployee() {
     setEditingEmployee(null);
     setEmployeeModalOpen(true);
@@ -138,46 +166,88 @@ export default function AttendancePage() {
     setEditingEmployee(null);
     setEmployeeModalOpen(false);
   }
-  function saveEmployee(data) {
-    const employeeData = {
-      ...data,
-      dailySalary: Number(data.dailySalary) || 0 
-    };
-    if (editingEmployee) {
-      setEmployees(prev => prev.map(p => p.id === editingEmployee.id ? { ...p, ...employeeData } : p));
-    } else {
-      const id = `emp${Date.now()}`;
-      setEmployees(prev => [{ id, ...employeeData }, ...prev]);
-    }
-    closeEmployeeModal();
+
+  function openEmployeeDetail(emp) {
+    setSelectedEmployeeDetail(emp);
   }
-  function deleteEmployee(id) {
-    if (!window.confirm("Delete this employee? This cannot be undone.")) return;
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    setAttendance(prev => prev.filter(a => a.employeeId !== id));
+  function closeEmployeeDetail() {
+    setSelectedEmployeeDetail(null);
   }
 
-  /* ---------- Attendance handling (UPDATED) ---------- */
+  async function saveEmployee(data) {
+    setSavingEmployee(true);
+    try {
+      if (editingEmployee && editingEmployee.id) {
+        const resp = await api.patch(`/employees/${editingEmployee.id}/`, data);
+        const updated = resp.data;
+        setEmployees(prev => prev.map(e => (String(e.id) === String(updated.id) ? updated : e)));
+        alert('Employee updated');
+      } else {
+        const resp = await api.post('/employees/', data);
+        const created = resp.data;
+        setEmployees(prev => [created, ...(prev || [])]);
+        alert('Employee created');
+      }
+    } catch (err) {
+      console.error('Save employee failed', err);
+      alert('Failed to save employee: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    } finally {
+      setSavingEmployee(false);
+      closeEmployeeModal();
+    }
+  }
+
+  async function deleteEmployee(id) {
+    if (!window.confirm('Delete this employee? This cannot be undone.')) return;
+    try {
+      await api.delete(`/employees/${id}/`);
+      setEmployees(prev => prev.filter(e => String(e.id) !== String(id)));
+      // also remove attendance for this employee locally
+      setAttendance(prev => prev.filter(a => String(a.employee) !== String(id)));
+      // if detail modal is open for the same employee, close it
+      if (selectedEmployeeDetail && String(selectedEmployeeDetail.id) === String(id)) {
+        closeEmployeeDetail();
+      }
+      alert('Employee deleted');
+    } catch (err) {
+      console.error('Delete failed', err);
+      alert('Delete failed: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    }
+  }
+
+  /* ---------- Attendance handling ---------- */
   function openAttendanceModal() {
     setAttendanceModalOpen(true);
   }
   function closeAttendanceModal() {
     setAttendanceModalOpen(false);
   }
-  function submitAttendance(attMap) {
-    // attMap: { employeeId: { status: 'Present'|'Absent', payout: number } }
-    const others = attendance.filter(r => r.date !== selectedDate);
-    
-    const newRecords = Object.entries(attMap).map(([employeeId, data], idx) => ({
-      id: `att${Date.now()}${idx}${employeeId}`,
-      date: selectedDate,
-      employeeId,
-      status: data.status,
-      payout: data.status === 'Present' ? Number(data.payout) : 0, // Ensure payout is 0 if absent
-    }));
-    
-    setAttendance([...others, ...newRecords]);
-    closeAttendanceModal();
+
+  // Called by AttendanceModal: attMap is { employeeId: { status, payout } }
+  async function submitAttendance(attMap) {
+    // Build records array for backend bulk-mark
+    const date = selectedDate;
+    const records = Object.entries(attMap).map(([employeeId, data]) => {
+      return {
+        employee_id: Number(employeeId), // backend expected field
+        status: data.status,
+        daily_salary_applied: (data.status === 'Present') ? Number(data.payout || 0) : 0,
+      };
+    });
+
+    setSavingAttendance(true);
+    try {
+      await api.post('/attendance/bulk-mark/', { date, records });
+      // Response contains created/updated summary; reload attendance & employees
+      await loadAttendance(date);
+      alert('Attendance saved');
+    } catch (err) {
+      console.error('Save attendance failed', err);
+      alert('Failed to save attendance: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    } finally {
+      setSavingAttendance(false);
+      closeAttendanceModal();
+    }
   }
 
   return (
@@ -273,7 +343,12 @@ export default function AttendancePage() {
             </div>
 
             <div className="am-card-body">
-              <EmployeeList employees={filteredEmployees} onEdit={openEditEmployee} onDelete={deleteEmployee} />
+              <EmployeeList
+                employees={filteredEmployees}
+                onEdit={(emp) => { openEditEmployee(emp); }}
+                onDelete={(id) => deleteEmployee(id)}
+                onOpenDetail={(emp) => openEmployeeDetail(emp)}
+              />
             </div>
           </aside>
         </section>
@@ -281,7 +356,21 @@ export default function AttendancePage() {
 
       {/* Modals */}
       {isEmployeeModalOpen && (
-        <EmployeeModal employee={editingEmployee} onClose={closeEmployeeModal} onSave={saveEmployee} />
+        <EmployeeModal
+          employee={editingEmployee}
+          onClose={closeEmployeeModal}
+          onSave={saveEmployee}
+          saving={savingEmployee}
+        />
+      )}
+
+      {selectedEmployeeDetail && (
+        <EmployeeDetailModal
+          employee={selectedEmployeeDetail}
+          onClose={closeEmployeeDetail}
+          onEdit={(emp) => { closeEmployeeDetail(); openEditEmployee(emp); }}
+          onDelete={(id) => deleteEmployee(id)}
+        />
       )}
 
       {isAttendanceModalOpen && (
@@ -291,6 +380,7 @@ export default function AttendancePage() {
           selectedDate={selectedDate}
           onClose={closeAttendanceModal}
           onSubmit={submitAttendance}
+          saving={savingAttendance}
         />
       )}
     </div>
@@ -334,7 +424,7 @@ function AttendanceList({ employees }) {
           <tr>
             <th>Employee</th>
             <th>Employee ID</th>
-            <th className="mono">Day's Payout</th> {/* UPDATED Header */}
+            <th className="mono">Day's Payout</th>
             <th style={{ width: 120 }}>Status</th>
           </tr>
         </thead>
@@ -352,8 +442,8 @@ function AttendanceList({ employees }) {
                   </div>
                 </div>
               </td>
-              <td className="mono">{emp.employeeId}</td>
-              <td className="mono">{formatCurrency(emp.payout)}</td> {/* UPDATED Value */}
+              <td className="mono">{emp.employee_code || emp.employeeId}</td>
+              <td className="mono">{formatCurrency(emp.payout)}</td>
               <td>
                 <span className={`pill ${emp.status === "Present" ? "pill-present" : "pill-absent"}`}>
                   {emp.status}
@@ -367,25 +457,49 @@ function AttendanceList({ employees }) {
   );
 }
 
-function EmployeeList({ employees, onEdit, onDelete }) {
+/* Employee list now shows only basic info; clicking a row opens full detail */
+function EmployeeList({ employees = [], onEdit, onDelete, onOpenDetail }) {
   return (
     <div className="employee-list" aria-live="polite">
       {employees.length === 0 && <div className="note">No employees found.</div>}
       {employees.map(emp => (
-        <div key={emp.id} className="employee-row" role="listitem">
+        <div
+          key={emp.id}
+          className="employee-row"
+          role="listitem"
+          onClick={() => onOpenDetail && onOpenDetail(emp)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail && onOpenDetail(emp); } }}
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          aria-label={`View details for ${emp.name}`}
+        >
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-             <div className="avatar-small">
+            <div className="avatar-small">
               {initials(emp.name)}
             </div>
             <div>
               <div className="emp-name">{emp.name}</div>
-              <div className="emp-meta">{emp.employeeId} · {emp.department} · {formatCurrency(emp.dailySalary)}/day</div>
+              <div className="emp-meta">{emp.employee_code || emp.employeeId} · {emp.department}</div>
             </div>
           </div>
 
-          <div className="row-actions" role="group" aria-label={`Actions for ${emp.name}`}>
-            <button className="icon-btn" onClick={() => onEdit(emp)} title="Edit"><Edit /></button>
-            <button className="icon-btn danger" onClick={() => onDelete(emp.id)} title="Delete"><Trash2 /></button>
+          <div className="row-actions" role="group" aria-label={`Quick actions for ${emp.name}`}>
+            <button
+              className="icon-btn"
+              onClick={(e) => { e.stopPropagation(); onEdit && onEdit(emp); }}
+              title="Edit"
+              aria-label={`Edit ${emp.name}`}
+            >
+              <Edit />
+            </button>
+            <button
+              className="icon-btn danger"
+              onClick={(e) => { e.stopPropagation(); onDelete && onDelete(emp.id); }}
+              title="Delete"
+              aria-label={`Delete ${emp.name}`}
+            >
+              <Trash2 />
+            </button>
           </div>
         </div>
       ))}
@@ -393,7 +507,8 @@ function EmployeeList({ employees, onEdit, onDelete }) {
   );
 }
 
-/* ---------- Modal base ---------- */
+/* Modal & Employee modal components */
+
 function Modal({ title, onClose, children }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -414,13 +529,15 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-/* ---------- Employee modal ---------- */
-function EmployeeModal({ employee, onClose, onSave }) {
+function EmployeeModal({ employee, onClose, onSave, saving }) {
   const [form, setForm] = useState({
     name: employee?.name || "",
     department: employee?.department || "",
-    employeeId: employee?.employeeId || "",
-    dailySalary: employee?.dailySalary || 0,
+    employee_code: employee?.employee_code || employee?.employeeId || "",
+    daily_salary: employee?.daily_salary ?? employee?.dailySalary ?? 0,
+    phone: employee?.phone || "",
+    nic: employee?.nic || "",
+    hire_date: employee?.hire_date ? String(employee.hire_date).split('T')[0] : (employee?.hire_date || ""),
   });
   const [error, setError] = useState("");
 
@@ -428,8 +545,11 @@ function EmployeeModal({ employee, onClose, onSave }) {
     setForm({
       name: employee?.name || "",
       department: employee?.department || "",
-      employeeId: employee?.employeeId || "",
-      dailySalary: employee?.dailySalary || 0,
+      employee_code: employee?.employee_code || employee?.employeeId || "",
+      daily_salary: employee?.daily_salary ?? employee?.dailySalary ?? 0,
+      phone: employee?.phone || "",
+      nic: employee?.nic || "",
+      hire_date: employee?.hire_date ? String(employee.hire_date).split('T')[0] : (employee?.hire_date || ""),
     });
     setError("");
   }, [employee]);
@@ -441,11 +561,24 @@ function EmployeeModal({ employee, onClose, onSave }) {
 
   function submit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.employeeId.trim()) {
-      setError("Name and Employee ID are required.");
+    if (!form.name.trim() || !form.employee_code.trim()) {
+      setError("Name and Employee ID / code are required.");
       return;
     }
-    onSave(form);
+
+    // Normalize payload fields to backend names:
+    const payload = {
+      name: form.name.trim(),
+      department: form.department.trim() || null,
+      employee_code: form.employee_code.trim(),
+      daily_salary: Number(form.daily_salary || 0),
+      phone: form.phone?.trim() || null,
+      nic: form.nic?.trim() || null,
+      // send hire_date as yyyy-mm-dd string; backend DateField will parse this
+      hire_date: form.hire_date || null,
+    };
+
+    onSave(payload);
   }
 
   return (
@@ -455,99 +588,161 @@ function EmployeeModal({ employee, onClose, onSave }) {
           <div className="label">Full name</div>
           <input name="name" value={form.name} onChange={change} className="input" autoFocus />
         </label>
-        
+
         <div className="form-row">
           <label className="field">
             <div className="label">Department</div>
             <input name="department" value={form.department} onChange={change} className="input" />
           </label>
           <label className="field">
-            <div className="label">Employee ID</div>
-            <input name="employeeId" value={form.employeeId} onChange={change} className="input" />
+            <div className="label">Employee ID / Code</div>
+            <input name="employee_code" value={form.employee_code} onChange={change} className="input" />
           </label>
         </div>
-        
-        <label className="field">
-          <div className="label">Default Daily Salary (₨)</div>
-          <input 
-            name="dailySalary" 
-            type="number" 
-            value={form.dailySalary} 
-            onChange={change} 
-            className="input" 
-            placeholder="e.g. 2500"
-          />
-        </label>
+
+        <div className="form-row">
+          <label className="field">
+            <div className="label">Phone</div>
+            <input name="phone" value={form.phone} onChange={change} className="input" placeholder="+94..." />
+          </label>
+          <label className="field">
+            <div className="label">NIC</div>
+            <input name="nic" value={form.nic} onChange={change} className="input" placeholder="e.g. 123456789V" />
+          </label>
+        </div>
+
+        <div className="form-row">
+          <label className="field">
+            <div className="label">Hire date</div>
+            <input
+              name="hire_date"
+              type="date"
+              value={form.hire_date || ""}
+              onChange={change}
+              className="input"
+            />
+          </label>
+
+          <label className="field">
+            <div className="label">Default Daily Salary (₨)</div>
+            <input
+              name="daily_salary"
+              type="number"
+              value={form.daily_salary}
+              onChange={change}
+              className="input"
+              placeholder="e.g. 2500"
+            />
+          </label>
+        </div>
 
         {error && <div className="note" style={{ color: "var(--am-red)" }}>{error}</div>}
 
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary">{employee ? "Save Changes" : "Add Employee"}</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : (employee ? "Save Changes" : "Add Employee")}</button>
         </div>
       </form>
     </Modal>
   );
 }
 
-/* ---------- Attendance modal (UPDATED) ---------- */
-function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, onSubmit }) {
-  
-  // UPDATED: State now holds an object with status and payout
+/* Employee Detail modal - shows full info, edit & delete actions */
+function EmployeeDetailModal({ employee, onClose, onEdit, onDelete }) {
+  if (!employee) return null;
+
+  const hireDateDisplay = employee.hire_date ? new Date(employee.hire_date).toLocaleDateString() : '—';
+
+  return (
+    <Modal title={`Employee — ${employee.name}`} onClose={onClose}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 8, background: '#f3f4f6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20
+          }}>
+            {initials(employee.name)}
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{employee.name}</div>
+            <div style={{ color: 'var(--am-muted)', marginTop: 4 }}>
+              {employee.employee_code || employee.employeeId} · {employee.department || '—'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <div className="small" style={{ color: 'var(--am-muted)' }}>Phone</div>
+            <div>{employee.phone || '—'}</div>
+          </div>
+          <div>
+            <div className="small" style={{ color: 'var(--am-muted)' }}>NIC</div>
+            <div>{employee.nic || '—'}</div>
+          </div>
+
+          <div>
+            <div className="small" style={{ color: 'var(--am-muted)' }}>Hire date</div>
+            <div>{hireDateDisplay}</div>
+          </div>
+          <div>
+            <div className="small" style={{ color: 'var(--am-muted)' }}>Default daily salary</div>
+            <div>{formatCurrency(employee.daily_salary ?? employee.dailySalary ?? 0)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="btn ghost" onClick={() => onEdit && onEdit(employee)}><Edit /> Edit</button>
+          <button
+            className="btn danger"
+            onClick={() => {
+              if (!window.confirm(`Delete ${employee.name}? This cannot be undone.`)) return;
+              onDelete && onDelete(employee.id);
+              onClose && onClose();
+            }}
+          >
+            <Trash2 /> Delete
+          </button>
+          <div style={{ marginLeft: 'auto' }}>
+            <button className="btn" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* AttendanceModal (connected to backend payload expectations) */
+function AttendanceModal({ employees = [], todaysAttendance = [], selectedDate, onClose, onSubmit, saving }) {
   const [map, setMap] = useState({});
 
   useEffect(() => {
-    // This function now runs when the modal opens or deps change
-    const buildInitialMap = () => {
-      const newMap = {};
-      employees.forEach(emp => {
-        const rec = todaysAttendance.find(r => r.employeeId === emp.id);
-        if (rec) {
-          // Found an existing record for this day
-          newMap[emp.id] = { status: rec.status, payout: rec.payout };
-        } else {
-          // No record, use default salary and mark as Absent
-          newMap[emp.id] = { status: "Absent", payout: emp.dailySalary || 0 };
-        }
-      });
-      return newMap;
-    };
-    setMap(buildInitialMap());
-  }, [employees, todaysAttendance, selectedDate, onClose]); // Re-build map when modal is opened
+    const newMap = {};
+    employees.forEach(emp => {
+      const rec = (todaysAttendance || []).find(r => String(r.employee) === String(emp.id) || String(r.employee) === String(emp.id));
+      if (rec) {
+        newMap[emp.id] = { status: rec.status, payout: Number(rec.daily_salary_applied || emp.daily_salary || emp.dailySalary || 0) };
+      } else {
+        newMap[emp.id] = { status: "Absent", payout: 0 };
+      }
+    });
+    setMap(newMap);
+  }, [employees, todaysAttendance, selectedDate]);
 
   function handleStatusChange(id, status) {
     setMap(prev => {
-      const newPayout = status === 'Absent' 
-        ? 0 
-        : (employees.find(e => e.id === id)?.dailySalary || 0); // Reset to default on "Present"
-        
-      // If we are marking as present, check if there was a previous payout recorded today
-      const existingRecord = todaysAttendance.find(r => r.employeeId === id);
-      const payoutToUse = status === 'Present' 
-        ? (existingRecord ? existingRecord.payout : newPayout) // Use recorded or default
-        : 0; // 0 if absent
-
-      return {
-        ...prev,
-        [id]: { 
-          ...prev[id], 
-          status: status,
-          payout: payoutToUse
-        }
-      };
+      const curr = prev[id] || { status: 'Absent', payout: 0 };
+      const defaultPayout = employees.find(e => String(e.id) === String(id))?.daily_salary ?? employees.find(e => String(e.id) === String(id))?.dailySalary ?? 0;
+      const payoutToUse = status === 'Present' ? (curr.payout || defaultPayout) : 0;
+      return { ...prev, [id]: { status, payout: payoutToUse } };
     });
   }
-  
+
   function handlePayoutChange(id, payout) {
-    // Only allow changing payout if status is 'Present'
     setMap(prev => {
-      if (prev[id].status === 'Present') {
-        return {
-          ...prev,
-          [id]: { ...prev[id], payout: payout }
-        };
-      }
-      return prev; // Don't change payout if absent
+      const curr = prev[id] || { status: 'Absent', payout: 0 };
+      if (curr.status !== 'Present') return prev;
+      return { ...prev, [id]: { ...curr, payout: Number(payout || 0) } };
     });
   }
 
@@ -555,8 +750,7 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
     setMap(prev => {
       const next = {};
       employees.forEach(e => {
-        const newPayout = status === 'Present' ? (e.dailySalary || 0) : 0;
-        next[e.id] = { status: status, payout: newPayout };
+        next[e.id] = { status, payout: status === 'Present' ? Number(e.daily_salary ?? e.dailySalary ?? 0) : 0 };
       });
       return next;
     });
@@ -567,7 +761,7 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
     onSubmit(map);
   }
 
-  const present = Object.values(map).filter(v => v.status === "Present").length;
+  const present = Object.values(map).filter(v => v.status === 'Present').length;
 
   return (
     <Modal title={`Mark Attendance — ${formatDateDisplay(selectedDate)}`} onClose={onClose}>
@@ -584,19 +778,18 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
           {employees.map(emp => {
             const entry = map[emp.id] || { status: 'Absent', payout: 0 };
             return (
-              <div key={emp.id} className="attendance-row" role="listitem" aria-label={`Attendance for ${emp.name}`}>
+              <div key={emp.id} className="attendance-row" role="listitem" aria-label={`Attendance for ${emp.name}`} style={{ alignItems: 'center' }}>
                 <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
                   <div className="avatar-small">
                     {initials(emp.name)}
                   </div>
                   <div>
                     <div className="emp-name">{emp.name}</div>
-                    <div className="emp-meta">{emp.employeeId}</div>
+                    <div className="emp-meta">{emp.employee_code || emp.employeeId}</div>
                   </div>
                 </div>
 
-                <div className="attendance-controls" role="radiogroup" aria-label={`Status for ${emp.name}`}>
-                  {/* Payout Input Field */}
+                <div className="attendance-controls" role="radiogroup" aria-label={`Status for ${emp.name}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <div className="payout-input-wrapper">
                     <span className="payout-currency">₨</span>
                     <input
@@ -606,17 +799,16 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
                       disabled={entry.status === 'Absent'}
                       className="attendance-payout-input"
                       aria-label={`Payout for ${emp.name}`}
+                      style={{ width: 100 }}
                     />
                   </div>
-                  
-                  {/* Radio Buttons */}
+
                   <label className="radio" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                     <input
                       type="radio"
                       name={`status-${emp.id}`}
                       checked={entry.status === "Present"}
                       onChange={() => handleStatusChange(emp.id, "Present")}
-                      aria-checked={entry.status === "Present"}
                     />
                     <span>Present</span>
                   </label>
@@ -626,7 +818,6 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
                       name={`status-${emp.id}`}
                       checked={entry.status === "Absent"}
                       onChange={() => handleStatusChange(emp.id, "Absent")}
-                      aria-checked={entry.status === "Absent"}
                     />
                     <span>Absent</span>
                   </label>
@@ -640,7 +831,7 @@ function AttendanceModal({ employees, todaysAttendance, selectedDate, onClose, o
           <div style={{ color: "var(--am-muted)" }}>Marked present: <strong style={{ color: "var(--am-green)" }}>{present}</strong></div>
           <div className="modal-actions" style={{ paddingTop: 0 }}>
             <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn primary">Submit Attendance</button>
+            <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Submit Attendance'}</button>
           </div>
         </div>
       </form>

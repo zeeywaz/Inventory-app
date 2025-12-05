@@ -2,16 +2,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import '../styles/expenses.css';
 import { Plus, ReceiptText, X } from 'lucide-react';
-import { useData } from '../contexts/DataContext';
+import api from '../api';
 
 /**
  * AddExpenseModal
  * - Controlled inputs for: date, category, amount, paymentMethod, description, receiptFile
  * - validation and accessibility
- * - calls onSave(expenseObject) prop and context.addExpense if available
+ * - calls onSave(expenseObject) prop
  */
-function AddExpenseModal({ isOpen, onClose, onSave }) {
-  const { expenses = [], addExpense } = useData() || {};
+function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -24,7 +23,7 @@ function AddExpenseModal({ isOpen, onClose, onSave }) {
 
   // compute categories from existing expenses
   const categories = useMemo(() => {
-    const setCats = new Set(expenses.map((e) => e.category).filter(Boolean));
+    const setCats = new Set((expenses || []).map((e) => e.category).filter(Boolean));
     return Array.from(setCats).sort();
   }, [expenses]);
 
@@ -69,29 +68,22 @@ function AddExpenseModal({ isOpen, onClose, onSave }) {
       setError('Enter a valid amount greater than 0.');
       return;
     }
+
+    // Build payload (backend ExpenseSerializer expects: category, amount, paid_by, notes, receipt_url)
     const payload = {
-      id: `ex-${Date.now()}`,
-      date: new Date(date).toISOString(),
+      // date is read-only server-side -> server will set auto_now_add
       category: chosenCategory,
       amount: Math.round(amt * 100) / 100,
-      paymentMethod,
-      description: description.trim(),
-      receiptFilename: receiptFile ? receiptFile.name : null,
-      created_at: new Date().toISOString(),
+      paid_by: paymentMethod,
+      notes: description.trim() || null,
+      // the Expense model stores receipt_url as text; here we send filename.
+      // If you later implement file uploading, replace this with the file URL returned by the upload endpoint.
+      receipt_url: receiptFile ? receiptFile.name : null,
     };
-
-    // call context function if available (best-effort)
-    if (typeof addExpense === 'function') {
-      try {
-        addExpense(payload);
-      } catch (err) {
-        console.warn('addExpense threw:', err);
-      }
-    }
 
     // call parent callback
     if (typeof onSave === 'function') {
-      onSave(payload);
+      onSave(payload, receiptFile);
     }
 
     onClose();
@@ -136,8 +128,10 @@ function AddExpenseModal({ isOpen, onClose, onSave }) {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className="ex-input"
-                  required
                 />
+                <div className="small" style={{ color: '#6b7280', marginTop: 6 }}>
+                  (Server will use current date/time; this field is for your reference)
+                </div>
               </div>
 
               <div className="ex-field">
@@ -296,17 +290,43 @@ function AddExpenseModal({ isOpen, onClose, onSave }) {
 }
 
 /**
- * Expenses page (parent) - uses AddExpenseModal
+ * Expenses page (connected to backend)
  */
 export default function Expenses() {
-  const { expenses = [], addExpense } = useData() || {};
+  const [expenses, setExpenses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // totals
   const today = new Date().toDateString();
-  const todayExpenses = (expenses || []).filter((ex) => new Date(ex.date).toDateString() === today);
+  const todayExpenses = (expenses || []).filter((ex) => {
+    try {
+      return new Date(ex.date).toDateString() === today;
+    } catch {
+      return false;
+    }
+  });
   const todayTotal = todayExpenses.reduce((s, ex) => s + (Number(ex.amount) || 0), 0);
   const totalExpenses = (expenses || []).reduce((s, ex) => s + (Number(ex.amount) || 0), 0);
+
+  useEffect(() => {
+    loadExpenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadExpenses() {
+    setLoading(true);
+    try {
+      const resp = await api.get('/expenses/');
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? [];
+      setExpenses(raw);
+    } catch (err) {
+      console.error('Failed to load expenses', err);
+      alert('Could not load expenses. ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function handleOpen() {
     setIsModalOpen(true);
@@ -315,25 +335,39 @@ export default function Expenses() {
     setIsModalOpen(false);
   }
 
-  async function handleSaveExpense(expenseObj) {
-    if (typeof addExpense === 'function') {
+  /**
+   * onSave handler passed to AddExpenseModal
+   * payload: { category, amount, paid_by, notes, receipt_url }
+   * receiptFile: optional File object (not uploaded here)
+   */
+  async function handleSaveExpense(payload, receiptFile) {
+    try {
+      // If you later implement a file upload endpoint, upload receiptFile first,
+      // then replace payload.receipt_url with the returned URL.
+      const resp = await api.post('/expenses/', payload);
+      const created = resp.data;
+      setExpenses((prev) => (Array.isArray(prev) ? [created, ...prev] : [created]));
+      alert('Expense saved.');
+    } catch (err) {
+      console.error('Save expense failed', err);
+      // Best-effort fallback: keep locally so user doesn't lose entry
       try {
-        const res = await addExpense(expenseObj);
-        // best-effort success feedback
-        if (res && res.success === false) {
-          alert('Expense saved (partial).');
-        } else {
-          alert('Expense saved.');
-        }
-      } catch (err) {
-        console.error('addExpense error', err);
-        alert('Expense saved (mock).');
+        const fallback = {
+          id: `ex-local-${Date.now()}`,
+          category: payload.category,
+          amount: payload.amount,
+          paid_by: payload.paid_by,
+          notes: payload.notes,
+          receipt_url: payload.receipt_url,
+          created_at: new Date().toISOString(),
+          date: new Date().toISOString(),
+        };
+        setExpenses((prev) => [fallback, ...(prev || [])]);
+        alert('Expense saved locally (server failed).');
+      } catch (e) {
+        alert('Failed to save expense: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
       }
-    } else {
-      console.log('Expense (local):', expenseObj);
-      alert('Expense recorded (mock).');
     }
-    handleClose();
   }
 
   // format helper
@@ -341,7 +375,7 @@ export default function Expenses() {
 
   return (
     <div className="ex-page">
-      <AddExpenseModal isOpen={isModalOpen} onClose={handleClose} onSave={handleSaveExpense} />
+      <AddExpenseModal isOpen={isModalOpen} onClose={handleClose} onSave={handleSaveExpense} expenses={expenses} />
 
       <div className="ex-header">
         <div>
@@ -386,7 +420,9 @@ export default function Expenses() {
         </div>
 
         <div className="ex-card-content">
-          {(!expenses || expenses.length === 0) ? (
+          {loading ? (
+            <div className="ex-empty">Loading…</div>
+          ) : (!expenses || expenses.length === 0) ? (
             <div className="ex-empty">
               <ReceiptText size={48} className="ex-empty-icon" />
               <p>No expenses recorded yet</p>
@@ -408,9 +444,9 @@ export default function Expenses() {
                 <tbody>
                   {expenses.slice().reverse().map((ex) => (
                     <tr key={ex.id || ex.created_at}>
-                      <td>{new Date(ex.date).toLocaleDateString()}</td>
+                      <td>{ex.date ? new Date(ex.date).toLocaleDateString() : (ex.created_at ? new Date(ex.created_at).toLocaleDateString() : '—')}</td>
                       <td>{ex.category}</td>
-                      <td style={{ maxWidth: 480 }}>{ex.description || '-'}</td>
+                      <td style={{ maxWidth: 480 }}>{ex.notes || ex.description || '-'}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(Number(ex.amount) || 0)}</td>
                     </tr>
                   ))}

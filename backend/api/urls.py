@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import (
 from .views import (
     ProductViewSet, AttendanceViewSet, EmployeeViewSet, CustomerViewSet,
     SupplierViewSet, health_check, SupplierPaymentViewSet, InquiryViewSet,
-    ExpenseViewSet, PurchaseOrderViewSet, POLineViewSet, current_user 
+    ExpenseViewSet, PurchaseOrderViewSet, POLineViewSet, current_user, SalesViewSet
 )
 
 router = DefaultRouter()
@@ -22,6 +22,7 @@ router.register(r'inquiries', InquiryViewSet, basename='inquiry')
 router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchaseorder')
 router.register(r'po-lines', POLineViewSet, basename='poline')
+router.register(r'sales', SalesViewSet, basename='sale')
 
 urlpatterns = [
     # 1. The standard API routers
