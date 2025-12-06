@@ -248,6 +248,7 @@ class Sale(models.Model):
     is_credit = models.BooleanField(default=False)
     created_by = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
+    vehicle_number = models.CharField(max_length=64, blank=True, null=True)
 
     def __str__(self):
         return f"Sale {self.sale_no or self.id} - {self.total_amount}"

@@ -3,14 +3,15 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import '../styles/sales.css';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, ShoppingCart, X, Trash2 } from 'lucide-react';
+import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck } from 'lucide-react';
 
-/* -------------------------
-   Small UI helpers & icons
-   ------------------------- */
+// --- Helper Components ---
+
 function StatCard({ title, value, subValue, color }) {
   return (
-    <div className="card stat-card sales-stat-card" style={{ ['--card-color']: color }}>
+    // We pass the color as a CSS variable ('--card-color') 
+    // so the CSS ::before element can read it.
+    <div className="sales-stat-card" style={{ '--card-color': color }}>
       <div className="stat-card-info">
         <span className="stat-title">{title}</span>
         <span className="stat-value">{value}</span>
@@ -22,570 +23,465 @@ function StatCard({ title, value, subValue, color }) {
 
 const fmtCurrency = (v) => `₨ ${Number(v || 0).toFixed(2)}`;
 
-/* -------------------------
-   Sale detail modal
-   ------------------------- */
+// --- Sale Detail Modal ---
+
 function SaleDetailModal({ isOpen, onClose, sale }) {
   if (!isOpen || !sale) return null;
   const get = (k) => sale[k] ?? sale[k === 'totalAmount' ? 'total_amount' : k];
+
   return (
-    <div className="bill-modal-overlay" onClick={onClose}>
-      <div className="bill-modal-content sale-detail-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="bill-modal-header">
-          <h3>Sale Details #{String(get('id') ?? '').slice(-6)}</h3>
-          <button type="button" className="bill-modal-close" onClick={onClose} aria-label="Close details">
-            <X size={20} />
-          </button>
+    <div className="sales-modal-overlay" onClick={onClose}>
+      <div className="sales-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="sales-modal-header">
+          <h3>Sale #{String(get('id') ?? '').slice(-6)}</h3>
+          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
 
-        <div className="bill-modal-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <div className="sales-modal-body">
+          <div className="sales-info-grid">
             <div>
-              <div><strong>Date:</strong> {sale.date ? new Date(sale.date).toLocaleString() : '—'}</div>
-              <div><strong>Customer:</strong> {sale.customer_name || sale.customerName || 'Walk-in'}</div>
+              <label>Date</label>
+              <div>{sale.date ? new Date(sale.date).toLocaleString() : '—'}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>{fmtCurrency(get('total_amount') ?? get('totalAmount'))}</div>
-              <div style={{ color: '#6b7280' }}>{sale.payment_method || sale.paymentMethod || ''}</div>
+            <div>
+              <label>Customer</label>
+              <div>{sale.customer_name || sale.customerName || 'Walk-in'}</div>
+            </div>
+            {/* NEW: Vehicle Display */}
+            <div>
+              <label>Vehicle Plate</label>
+              <div style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>
+                {sale.vehicle_number || sale.vehicleNumber || '—'}
+              </div>
+            </div>
+            <div>
+              <label>Payment</label>
+              <div style={{ textTransform: 'capitalize' }}>{sale.payment_method || 'Cash'}</div>
             </div>
           </div>
+          
+          <div style={{ textAlign: 'right', marginTop: '-1rem', marginBottom: '1rem' }}>
+             <label style={{fontSize: '0.8rem', color:'#6b7280', textTransform:'uppercase', fontWeight:600}}>Total Amount</label>
+             <div className="sales-total-large">{fmtCurrency(get('total_amount'))}</div>
+          </div>
 
-          <h4 style={{ marginTop: 12 }}>Items</h4>
-          <div className="bill-table-wrapper">
-            <table className="bill-table detail-table">
+          <h4 style={{ marginTop: '20px', marginBottom: '10px' }}>Items</h4>
+          <div className="sales-table-wrapper">
+            <table className="sales-table">
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th style={{ width: 90 }}>Qty</th>
-                  <th style={{ width: 140 }}>Unit Price</th>
-                  <th style={{ width: 140, textAlign: 'right' }}>Line Total</th>
+                  <th style={{ textAlign: 'center' }}>Qty</th>
+                  <th style={{ textAlign: 'right' }}>Price</th>
+                  <th style={{ textAlign: 'right' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {(sale.lines || []).map((ln, i) => {
-                  const unit = ln.unit_price ?? ln.unitPrice ?? ln.unitPrice;
-                  const qty = ln.quantity ?? ln.qty ?? ln.quantity;
-                  const name = ln.product_name ?? ln.productName ?? ln.product_name;
-                  return (
-                    <tr key={ln.id ?? `ln-${i}`}>
-                      <td>{name || 'N/A'}</td>
-                      <td>{qty ?? 0}</td>
-                      <td>{fmtCurrency(unit)}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtCurrency((Number(unit || 0) * Number(qty || 0)).toFixed(2))}</td>
-                    </tr>
-                  );
-                })}
+                {(sale.lines || []).map((ln, i) => (
+                  <tr key={i}>
+                    <td>{ln.product_name || ln.productName || 'Item'}</td>
+                    <td style={{ textAlign: 'center' }}>{ln.quantity}</td>
+                    <td style={{ textAlign: 'right' }}>{fmtCurrency(ln.unit_price)}</td>
+                    <td style={{ textAlign: 'right' }}>{fmtCurrency(ln.line_total)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#6b7280' }}>Subtotal</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{fmtCurrency(get('subtotal') ?? get('total_amount') ?? 0)}</div>
-            </div>
-          </div>
         </div>
 
-        <div className="bill-modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+        <div className="sales-modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* -------------------------
-   New / Edit Bill modal (nested lines)
-   - if `existing` prop is passed it becomes edit mode
-   ------------------------- */
+// --- Create/Edit Modal ---
+
 function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, existing = null, saving = false }) {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerId, setCustomerId] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [vehicleNumber, setVehicleNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  // NEW: Vehicle State
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Line item states
   const [selectedProductId, setSelectedProductId] = useState('');
   const [lineQty, setLineQty] = useState(1);
   const [lineUnitPrice, setLineUnitPrice] = useState('');
   const [lines, setLines] = useState([]);
   const [error, setError] = useState('');
 
+  // Initialize form
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  // initialize when modal opens or existing changes
-  useEffect(() => {
-    if (!isOpen) return;
-    if (existing) {
-      // populate fields from existing sale (be defensive with keys)
-      setDate(existing.date ? existing.date.slice(0,10) : new Date().toISOString().slice(0,10));
-      setCustomerId(existing.customer ?? existing.customerId ?? '');
-      setCustomerName(existing.customer_name ?? existing.customerName ?? '');
-      setVehicleNumber(existing.vehicle_number ?? existing.vehicleNumber ?? '');
-      setPaymentMethod(existing.payment_method ?? existing.paymentMethod ?? 'cash');
-      setNotes(existing.notes ?? '');
-      // map backend sale lines to our UI line shape
-      const initLines = (existing.lines || []).map((ln) => ({
-        id: ln.id ?? `ln-${Math.random().toString(36).slice(2,8)}`,
-        productId: ln.product ?? ln.product_id ?? ln.productId,
-        productName: ln.product_name ?? ln.productName ?? (ln.product_obj?.name) ?? '',
-        quantity: Number(ln.quantity ?? ln.qty ?? ln.quantity ?? ln.qty_ordered ?? 0),
-        unitPrice: Number(ln.unit_price ?? ln.unitPrice ?? ln.unit_cost ?? ln.unit_cost ?? 0),
-        // keep originalLineId for PATCH/line id when saving to backend
-        originalLineId: ln.id ?? null,
-      }));
-      setLines(initLines);
-    } else {
-      setDate(new Date().toISOString().slice(0,10));
-      setCustomerId(customers[0]?.id ?? '');
-      setCustomerName('');
-      setVehicleNumber('');
-      setPaymentMethod('cash');
-      setNotes('');
+    if (isOpen) {
+      if (existing) {
+        setDate(existing.date ? existing.date.slice(0,10) : new Date().toISOString().slice(0,10));
+        setCustomerId(existing.customer || '');
+        setPaymentMethod(existing.payment_method || 'cash');
+        // NEW: Load existing vehicle number
+        setVehicleNumber(existing.vehicle_number || existing.vehicleNumber || '');
+        setNotes(existing.notes || '');
+        setLines((existing.lines || []).map(ln => ({
+          uniqueId: Math.random(), // frontend key
+          id: ln.id, // backend ID for updates
+          productId: ln.product,
+          productName: ln.product_name || ln.productName,
+          quantity: ln.quantity,
+          unitPrice: ln.unit_price || ln.unitPrice
+        })));
+      } else {
+        // Reset for new bill
+        setDate(new Date().toISOString().slice(0,10));
+        setCustomerId('');
+        setPaymentMethod('cash');
+        setVehicleNumber('');
+        setNotes('');
+        setLines([]);
+      }
+      setError('');
       setSelectedProductId('');
       setLineQty(1);
       setLineUnitPrice('');
-      setLines([]);
     }
-    setError('');
-  }, [isOpen, existing, customers]);
+  }, [isOpen, existing]);
 
-  const getProduct = useCallback((id) => products.find(p => String(p.id) === String(id)), [products]);
-
+  // Update unit price when product selected
   useEffect(() => {
-    if (!selectedProductId) { setLineUnitPrice(''); return; }
-    const p = getProduct(selectedProductId);
-    const price = p?.selling_price ?? p?.sellingPrice ?? p?.price ?? p?.unitPrice ?? 0;
-    setLineUnitPrice(price != null ? String(price) : '');
-  }, [selectedProductId, getProduct]);
+    const p = products.find(prod => String(prod.id) === String(selectedProductId));
+    if (p) setLineUnitPrice(p.selling_price || 0);
+  }, [selectedProductId, products]);
 
   function addLine() {
-    setError('');
-    const prod = getProduct(selectedProductId);
-    if (!prod) { setError('Select a product to add'); return; }
-    const qty = Number(lineQty) || 0;
-    const unit = Number(lineUnitPrice) || 0;
-    if (qty <= 0) { setError('Quantity must be > 0'); return; }
-    if (unit < 0) { setError('Unit price must be >= 0'); return; }
+    if (!selectedProductId) return;
+    const p = products.find(prod => String(prod.id) === String(selectedProductId));
     const newLine = {
-      id: `ln-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-      productId: prod.id,
-      productName: prod.name || prod.title || '',
-      quantity: qty,
-      unitPrice: unit,
-      originalLineId: null,
+      uniqueId: Math.random(),
+      productId: p.id,
+      productName: p.name,
+      quantity: Number(lineQty),
+      unitPrice: Number(lineUnitPrice)
     };
-    setLines(prev => [...prev, newLine]);
+    setLines([...lines, newLine]);
     setSelectedProductId('');
     setLineQty(1);
     setLineUnitPrice('');
   }
 
-  function updateLine(id, patch) {
-    setLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  function removeLine(uniqueId) {
+    setLines(lines.filter(l => l.uniqueId !== uniqueId));
   }
 
-  function removeLine(id) {
-    setLines(prev => prev.filter(l => l.id !== id));
-  }
+  const subtotal = lines.reduce((acc, l) => acc + (l.quantity * l.unitPrice), 0);
 
-  const subtotal = useMemo(() => lines.reduce((s, l) => s + (Number(l.unitPrice || 0) * Number(l.quantity || 0)), 0), [lines]);
+  async function handleSubmit() {
+    if (lines.length === 0) {
+      setError("Please add at least one item.");
+      return;
+    }
 
-  async function handleSave() {
-    setError('');
-    if (!lines.length) { setError('Add at least one product line'); return; }
-
-    // Build payload that backend SaleSerializer expects:
-    // fields: date, customer, subtotal, total_amount, payment_method, notes, lines = [{ product: id, quantity, unit_price, product_name }]
     const payload = {
-      date: new Date(date).toISOString(),
+      date,
       customer: customerId || null,
-      customer_name: customerName || undefined,
-      vehicle_number: vehicleNumber || undefined,
       payment_method: paymentMethod,
-      notes: notes || '',
-      subtotal: Number(subtotal),
-      total_amount: Number(subtotal),
-      lines: lines.map((l) => ({
-        // if this line has an originalLineId (existing), include it so backend may update it
-        id: l.originalLineId || undefined,
-        product: Number(l.productId),
-        product_name: l.productName || undefined,
-        quantity: Number(l.quantity),
-        unit_price: Number(l.unitPrice),
-      })),
+      // NEW: Send vehicle number
+      vehicle_number: vehicleNumber || '',
+      notes,
+      total_amount: subtotal,
+      lines: lines.map(l => ({
+        id: l.id,
+        product: l.productId,
+        quantity: l.quantity,
+        unit_price: l.unitPrice
+      }))
     };
 
     try {
-      if (existing && existing.id) {
-        // PATCH update sale
-        const resp = await api.patch(`/sales/${existing.id}/`, payload);
-        if (typeof onSave === 'function') onSave(resp.data, true); // second arg indicates updated
+      if (existing) {
+        const res = await api.patch(`/sales/${existing.id}/`, payload);
+        onSave(res.data);
       } else {
-        // POST create sale
-        const resp = await api.post('/sales/', payload);
-        if (typeof onSave === 'function') onSave(resp.data, false); // false = created
+        const res = await api.post('/sales/', payload);
+        onSave(res.data);
       }
       onClose();
     } catch (err) {
-      console.error('Save sale failed', err);
-      setError(err?.response?.data ? JSON.stringify(err.response.data) : (err?.message || 'Failed to save'));
+      console.error(err);
+      setError("Failed to save sale. Check inputs.");
     }
   }
 
   if (!isOpen) return null;
-  return (
-    <div className="bill-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="bill-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="bill-modal-header">
-          <h3>{existing ? `Edit Bill #${String(existing.id ?? '').slice(-6)}` : 'New Bill'}</h3>
-          <button type="button" className="bill-modal-close" onClick={onClose}><X size={18} /></button>
-        </div>
 
-        <div className="bill-modal-body">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 12 }}>
-            <div>
-              <label className="label">Customer</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select value={customerId || ''} onChange={(e) => setCustomerId(e.target.value)} style={{ flex: 1 }}>
-                  <option value="">Walk-in</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <input placeholder="Or name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <label className="label">Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+  return (
+    <div className="sales-modal-overlay">
+      <div className="sales-modal" style={{ maxWidth: '850px' }}>
+        <div className="sales-modal-header">
+          <h3>{existing ? 'Edit Bill' : 'New Bill'}</h3>
+          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+        </div>
+        
+        <div className="sales-modal-body">
+          {/* Top Form - Organized into 2 Rows for cleaner look */}
+          <div className="form-row">
+            <div className="form-group" style={{flex: 0.5}}>
+              <label>Date</label>
+              <input type="date" className="clean-input" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="form-group" style={{flex: 1.5}}>
+              <label>Customer</label>
+              <select className="clean-input" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+                <option value="">Walk-in Customer</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            {/* NEW: Vehicle Plate Input */}
+            <div className="form-group">
+              <label>Vehicle Plate # (Optional)</label>
+              <div style={{position:'relative'}}>
+                <input 
+                  type="text" 
+                  className="clean-input" 
+                  placeholder="e.g. ABC-1234" 
+                  value={vehicleNumber} 
+                  onChange={e => setVehicleNumber(e.target.value.toUpperCase())} 
+                  style={{paddingLeft: '2.2rem'}}
+                />
+                <Truck size={16} style={{position:'absolute', left:'0.8rem', top:'50%', transform:'translateY(-50%)', color:'#9ca3af'}}/>
               </div>
             </div>
 
-            <div>
-              <label className="label">Vehicle # (optional)</label>
-              <input value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} />
-              <label className="label" style={{ marginTop: 8 }}>Payment</label>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <div className="form-group">
+              <label>Payment Method</label>
+              <select className="clean-input" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
                 <option value="cash">Cash</option>
                 <option value="card">Card</option>
-                <option value="bank">Bank transfer</option>
-                <option value="other">Other</option>
+                <option value="transfer">Bank Transfer</option>
+                <option value="credit">Credit / Later</option>
               </select>
             </div>
           </div>
 
-          {/* Add product line */}
-          <div style={{ marginTop: 12 }}>
-            <label className="label">Add product</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ flex: 1 }}>
-                <option value="">Select product…</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''}</option>)}
+          <hr style={{border:0, borderTop:'1px solid #f3f4f6', margin:'1.5rem 0'}}/>
+
+          {/* Add Line Section */}
+          <div className="add-line-box">
+            <div className="form-group" style={{ flex: 2 }}>
+              <select className="clean-input" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
+                <option value="">Select Product...</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''} (Stk: {p.quantity_in_stock})</option>
+                ))}
               </select>
-              <input type="number" min="1" value={lineQty} onChange={(e) => setLineQty(e.target.value)} style={{ width: 84 }} />
-              <input type="number" min="0" step="0.01" value={lineUnitPrice} onChange={(e) => setLineUnitPrice(e.target.value)} style={{ width: 120 }} />
-              <button type="button" className="btn primary" onClick={addLine}><Plus /> Add</button>
             </div>
+            <div className="form-group" style={{ flex: 0.5 }}>
+              <input type="number" className="clean-input" placeholder="Qty" value={lineQty} onChange={e => setLineQty(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <input type="number" className="clean-input" placeholder="Price" value={lineUnitPrice} onChange={e => setLineUnitPrice(e.target.value)} />
+            </div>
+            <button className="btn btn-primary" onClick={addLine}><Plus size={16}/> Add</button>
           </div>
 
-          {/* Lines table */}
-          {lines.length > 0 && (
-            <div style={{ marginTop: 12 }} className="bill-table-wrapper">
-              <table className="bill-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th style={{ width: 120 }}>Unit</th>
-                    <th style={{ width: 100 }}>Qty</th>
-                    <th style={{ width: 140, textAlign: 'right' }}>Line total</th>
-                    <th style={{ width: 60 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map(ln => (
-                    <tr key={ln.id}>
-                      <td>{ln.productName}</td>
+          {/* Lines Table */}
+          <div className="sales-table-wrapper" style={{ maxHeight: '250px', minHeight: '150px' }}>
+            <table className="sales-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.length === 0 ? (
+                  <tr><td colSpan="5" style={{textAlign:'center', color:'#999', padding:'2rem'}}>No items added yet.</td></tr>
+                ) : (
+                  lines.map(l => (
+                    <tr key={l.uniqueId}>
+                      <td>{l.productName}</td>
+                      <td>{l.quantity}</td>
+                      <td>{fmtCurrency(l.unitPrice)}</td>
+                      <td>{fmtCurrency(l.quantity * l.unitPrice)}</td>
                       <td>
-                        <input type="number" value={ln.unitPrice} onChange={(e) => updateLine(ln.id, { unitPrice: Number(e.target.value) })} />
-                      </td>
-                      <td>
-                        <input type="number" min="0" value={ln.quantity} onChange={(e) => updateLine(ln.id, { quantity: Number(e.target.value) })} />
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 800 }}>{fmtCurrency(Number(ln.unitPrice || 0) * Number(ln.quantity || 0))}</td>
-                      <td>
-                        <button type="button" className="icon-btn" onClick={() => removeLine(ln.id)}><Trash2 size={14} /></button>
+                        <button className="icon-btn danger" onClick={() => removeLine(l.uniqueId)}><Trash2 size={16}/></button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ color: '#6b7280' }}>
-              <label className="label">Notes</label>
-              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
-            <div style={{ width: 260 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div className="muted">Subtotal</div>
-                <div style={{ fontWeight: 800 }}>{fmtCurrency(subtotal)}</div>
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 16 }}>
-                <div style={{ fontWeight: 700 }}>Grand total</div>
-                <div style={{ fontWeight: 900 }}>{fmtCurrency(subtotal)}</div>
-              </div>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {error && <div style={{ marginTop: 10, color: '#b91c1c' }}>{error}</div>}
+          <div className="sales-footer-summary">
+            <div style={{flex: 1, marginRight: '2rem'}}>
+              <label>Notes</label>
+              <input className="clean-input" style={{width: '100%'}} placeholder="Optional notes..." value={notes} onChange={e => setNotes(e.target.value)} />
+            </div>
+            <div className="total-display">
+              <span>Grand Total</span>
+              <span className="amount">{fmtCurrency(subtotal)}</span>
+            </div>
+          </div>
+          
+          {error && <div className="error-msg">{error}</div>}
         </div>
 
-        <div className="bill-modal-actions">
+        <div className="sales-modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || lines.length === 0}>{saving ? 'Saving…' : (existing ? 'Save changes' : 'Create bill')}</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Bill'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-/* -------------------------
-   Main Sales page
-   ------------------------- */
+// --- Main Page ---
+
 export default function Sales() {
   const { user } = useAuth() || {};
-  const isAdmin = !!(user && (user.is_superuser || user.is_staff || user.role === 'admin'));
-  // states
+  const isAdmin = user?.role === 'admin';
+  
   const [sales, setSales] = useState([]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedSale, setSelectedSale] = useState(null);
+  const [detailSale, setDetailSale] = useState(null);
 
-  // load lists
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      try {
-        await Promise.all([loadSales(), loadProducts(), loadCustomers()]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
+    loadData();
   }, []);
 
-  async function loadSales() {
+  async function loadData() {
     try {
-      const resp = await api.get('/sales/');
-      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? resp.data;
-      setSales(raw || []);
-    } catch (err) {
-      console.error('Failed to load sales', err);
-      setSales([]);
-    }
-  }
-  async function loadProducts() {
-    try {
-      const resp = await api.get('/products/');
-      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? resp.data;
-      setProducts(raw || []);
-    } catch (err) {
-      console.error('Failed to load products', err);
-      setProducts([]);
-    }
-  }
-  async function loadCustomers() {
-    try {
-      const resp = await api.get('/customers/');
-      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? resp.data;
-      setCustomers(raw || []);
-    } catch (err) {
-      console.error('Failed to load customers', err);
-      setCustomers([]);
+      const [sRes, pRes, cRes] = await Promise.all([
+        api.get('/sales/'),
+        api.get('/products/'),
+        api.get('/customers/')
+      ]);
+      setSales(Array.isArray(sRes.data) ? sRes.data : sRes.data.results || []);
+      setProducts(Array.isArray(pRes.data) ? pRes.data : pRes.data.results || []);
+      setCustomers(Array.isArray(cRes.data) ? cRes.data : cRes.data.results || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
   }
 
-  // open create modal
-  function openCreate() {
-    setEditingSale(null);
-    setIsModalOpen(true);
-  }
-  function openEdit(sale) {
-    setEditingSale(sale);
-    setIsModalOpen(true);
-  }
-  function closeModal() {
-    setEditingSale(null);
-    setIsModalOpen(false);
+  function handleSave(savedSale) {
+    setSales(prev => {
+      const exists = prev.find(s => s.id === savedSale.id);
+      if (exists) return prev.map(s => s.id === savedSale.id ? savedSale : s);
+      return [savedSale, ...prev];
+    });
   }
 
-  // detail
-  function openDetail(sale) {
-    setSelectedSale(sale);
-    setIsDetailOpen(true);
-  }
-  function closeDetail() {
-    setSelectedSale(null);
-    setIsDetailOpen(false);
-  }
-
-  async function handleSaveFromModal(dataOrResp, updated) {
-    // onSave from modal passes created/updated sale object (server response) as first arg
-    // fallback: if onSave passed nothing, reload list
+  async function deleteSale(id) {
+    if (!confirm("Are you sure? This cannot be undone.")) return;
     try {
-      if (dataOrResp) {
-        // prefer server response object with id
-        const createdOrUpdated = dataOrResp;
-        // Refresh list: optimistically update in-place
-        setSales(prev => {
-          const exists = prev.find(p => String(p.id) === String(createdOrUpdated.id));
-          if (exists) {
-            return prev.map(p => String(p.id) === String(createdOrUpdated.id) ? createdOrUpdated : p);
-          } else {
-            return [createdOrUpdated, ...(prev || [])];
-          }
-        });
-      } else {
-        await loadSales();
-      }
-    } catch (err) {
-      console.warn('handleSaveFromModal error', err);
-      await loadSales();
+      await api.delete(`/sales/${id}/`);
+      setSales(prev => prev.filter(s => s.id !== id));
+    } catch (e) {
+      alert("Failed to delete");
     }
   }
 
-  async function handleDeleteSale(e, sale) {
-    e.stopPropagation();
-    if (!isAdmin) { alert('Only admins can delete sales.'); return; }
-    if (!window.confirm(`Delete sale #${String(sale.id).slice(-6)}? This cannot be undone.`)) return;
-    try {
-      await api.delete(`/sales/${sale.id}/`);
-      setSales(prev => prev.filter(s => String(s.id) !== String(sale.id)));
-      alert('Sale deleted');
-    } catch (err) {
-      console.error('Delete sale failed', err);
-      alert('Delete failed: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
-    }
-  }
-
-  // derived stats
-  const today = new Date().toDateString();
-  const todaySales = (sales || []).filter(s => new Date(s.date).toDateString() === today);
-  const todayCount = todaySales.length;
-  const todayRevenue = todaySales.reduce((s, it) => s + (Number(it.total_amount ?? it.totalAmount ?? 0) || 0), 0);
+  const todayRevenue = sales
+    .filter(s => new Date(s.date).toDateString() === new Date().toDateString())
+    .reduce((acc, s) => acc + Number(s.total_amount), 0);
 
   return (
     <div className="sales-page">
-      <NewBillModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
+      <div className="sales-header">
+        <div>
+          <h1>Sales Dashboard</h1>
+          <p>Manage bills and transactions</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setEditingSale(null); setModalOpen(true); }}>
+          <Plus size={18} style={{marginRight: 8}}/> New Bill
+        </button>
+      </div>
+
+      <div className="sales-stats">
+        <StatCard title="Today's Sales" value={sales.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).length} subValue="Transactions" color="#4f46e5" />
+        <StatCard title="Today's Revenue" value={fmtCurrency(todayRevenue)} subValue="Gross" color="#10b981" />
+      </div>
+
+      <div className="sales-list-card">
+        <div className="card-header">
+          <h3>Recent Transactions</h3>
+        </div>
+        <div className="sales-table-wrapper">
+          <table className="sales-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Vehicle</th>
+                <th>Payment</th>
+                <th>Amount</th>
+                <th style={{textAlign: 'right'}}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? <tr><td colSpan="7">Loading...</td></tr> : sales.map(s => (
+                <tr key={s.id} onClick={() => setDetailSale(s)} className="clickable-row">
+                  <td className="mono-font">#{String(s.sale_no || s.id).slice(-6)}</td>
+                  <td>{new Date(s.date).toLocaleDateString()}</td>
+                  <td>{s.customer_name || 'Walk-in'}</td>
+                  {/* NEW: Vehicle Column in List */}
+                  <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
+                  <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
+                  <td style={{fontWeight: 'bold'}}>{fmtCurrency(s.total_amount)}</td>
+                  <td style={{textAlign: 'right'}} onClick={e => e.stopPropagation()}>
+                    {isAdmin && (
+                      <>
+                        <button className="icon-btn" onClick={() => { setEditingSale(s); setModalOpen(true); }}>
+                          <Edit2 size={16}/>
+                        </button>
+                        <button className="icon-btn danger" onClick={() => deleteSale(s.id)}>
+                          <Trash2 size={16}/>
+                        </button>
+                      </>
+                    )}
+                    {!isAdmin && <button className="icon-btn"><FileText size={16}/></button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <NewBillModal 
+        isOpen={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        existing={editingSale}
         products={products}
         customers={customers}
-        existing={editingSale}
-        onSave={handleSaveFromModal}
-        saving={saving}
+        onSave={handleSave}
       />
 
-      <SaleDetailModal isOpen={isDetailOpen} onClose={closeDetail} sale={selectedSale} />
-
-      <div className="page-header">
-        <div className="header-title">
-          <h1>Sales</h1>
-          <p>Record multi-item bills and track transactions</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="new-bill-button" onClick={openCreate}><Plus size={18} /> New Bill</button>
-        </div>
-      </div>
-
-      <div className="sales-stat-grid">
-        <StatCard title="Today's Bills" value={todayCount} subValue="transactions" color="#8b5cf6" />
-        {isAdmin && <StatCard title="Today's Revenue" value={fmtCurrency(todayRevenue)} subValue="total revenue" color="#10b981" />}
-      </div>
-
-      <div className="card sales-history-card" style={{ marginTop: 12 }}>
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ShoppingCart size={18} />
-            <h2 className="card-title">Sales history ({sales.length})</h2>
-          </div>
-        </div>
-
-        <div className="card-content">
-          {loading ? (
-            <div className="empty-state">Loading…</div>
-          ) : (sales || []).length === 0 ? (
-            <div className="empty-state">
-              <ShoppingCart size={48} className="empty-icon" />
-              <p>No sales recorded yet</p>
-              <button className="record-sale-button" onClick={openCreate}><Plus size={18} /> Record Sale</button>
-            </div>
-          ) : (
-            <div className="sales-history-list">
-              {(sales || []).slice().reverse().map(s => {
-                const total = Number(s.total_amount ?? s.totalAmount ?? 0);
-                return (
-                  <div
-                    key={s.id}
-                    className="sale-row"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openDetail(s)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(s); }}
-                  >
-                    <div className="sale-details">
-                      <div className="sale-id">#{String(s.id ?? '').slice(-6)}</div>
-                      <div className="sale-meta">
-                        <span>{s.date ? new Date(s.date).toLocaleString() : '—'}</span>
-                        <span>{s.customer_name ?? s.customerName ?? 'Walk-in'} · {(s.lines || []).length} items</span>
-                      </div>
-                    </div>
-
-                    <div className="sale-actions">
-                      <div className="sale-amount">{isAdmin ? fmtCurrency(total) : '—'}</div>
-
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={(e) => { e.stopPropagation(); openEdit(s); }}
-                          title="Edit sale"
-                          aria-label="Edit sale"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            className="icon-btn danger"
-                            onClick={(e) => handleDeleteSale(e, s)}
-                            title="Delete sale"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <SaleDetailModal 
+        isOpen={!!detailSale} 
+        onClose={() => setDetailSale(null)} 
+        sale={detailSale} 
+      />
     </div>
   );
 }

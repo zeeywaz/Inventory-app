@@ -1,7 +1,7 @@
 // src/pages/purchaseorders.jsx
 import React, { useMemo, useState, useEffect } from 'react';
 import '../styles/purchaseorders.css';
-import { Plus, ClipboardList, X, Trash2, Edit } from 'lucide-react';
+import { Plus, ClipboardList, X, Trash2, Edit, DollarSign, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 
@@ -29,12 +29,6 @@ function paymentStatusMeta(status) {
 const formatCurrency = (amount) =>
   `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/**
- * Compute payment status from amounts:
- * - unpaid: amount_paid <= 0
- * - paid: amount_paid >= total_amount (total_amount > 0)
- * - partial: otherwise
- */
 function computePaymentStatus(amountPaid, totalAmount) {
   const paid = Number(amountPaid || 0);
   const total = Number(totalAmount || 0);
@@ -53,7 +47,6 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsVisible, setSearchResultsVisible] = useState(false);
   const [lines, setLines] = useState([]);
-  const [amountPaid, setAmountPaid] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState(null);
 
@@ -67,7 +60,6 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
       setSearchResultsVisible(false);
       setLines([]);
       setError('');
-      setAmountPaid('');
       setFieldErrors(null);
     } else {
       setOrderRef((prev) => prev || 'PO-' + Date.now().toString().slice(-6));
@@ -98,7 +90,7 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
       ...lines,
       {
         productId: pid,
-        productObj: product, // keep object if needed
+        productObj: product,
         name: product.name || 'Unnamed',
         sku: product.sku || '',
         qty: 1,
@@ -115,9 +107,6 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
   }
 
   function buildPayload() {
-    const paid = Number(amountPaid) || 0;
-    const finalPaymentStatus = computePaymentStatus(paid, totalAmount);
-
     return {
       po_no: orderRef || undefined,
       supplier_id: supplierId ? Number(supplierId) : null,
@@ -125,8 +114,8 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
       notes: notes || '',
       status: 'placed',
       total_amount: Number(totalAmount),
-      amount_paid: Number(paid),
-      payment_status: finalPaymentStatus,
+      amount_paid: 0, // Initial creation usually has 0 paid, payments are recorded separately
+      payment_status: 'unpaid',
       lines: lines.map((l) => ({
         product: Number(l.productId),
         qty_ordered: Number(l.qty),
@@ -185,17 +174,13 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
   }
 
   if (!isOpen) return null;
-  const computedPaymentStatus = computePaymentStatus(amountPaid, totalAmount);
-  const pm = paymentStatusMeta(computedPaymentStatus);
 
   return (
     <div className="po-modal-overlay" role="dialog" aria-modal="true" onMouseDown={onClose}>
       <div className="po-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="po-modal-header">
           <h3>Create Purchase Order</h3>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="po-icon-btn" onClick={onClose} aria-label="Close modal"><X size={18} /></button>
-          </div>
+          <button className="po-icon-btn" onClick={onClose} aria-label="Close modal"><X size={18} /></button>
         </div>
 
         <div className="po-modal-body">
@@ -207,40 +192,18 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
                 {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name || s.company}</option>)}
               </select>
               {fieldErrors?.supplier && <div className="po-field-error">{String(fieldErrors.supplier)}</div>}
-              {fieldErrors?.supplier_id && <div className="po-field-error">{String(fieldErrors.supplier_id)}</div>}
             </div>
             <div className="po-field">
               <label className="po-field-label">PO Reference</label>
               <input className="po-small-input" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} />
-              {fieldErrors?.po_no && <div className="po-field-error">{String(fieldErrors.po_no)}</div>}
             </div>
             <div className="po-field">
               <label className="po-field-label">Expected Date</label>
               <input className="po-small-input" type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
-              {fieldErrors?.expected_date && <div className="po-field-error">{String(fieldErrors.expected_date)}</div>}
             </div>
           </div>
 
           <div className="po-row">
-            <div className="po-field">
-              <label className="po-field-label">Amount Paid (Initial)</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  className="po-small-input"
-                  type="number"
-                  placeholder="0.00"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
-                />
-                <span style={{ display: 'inline-flex', alignItems: 'center' }} title={pm.label}>
-                  <span className="po-badge" style={{ background: pm.color, color: '#fff', fontSize: 12, padding: '4px 8px', borderRadius: 8 }}>{pm.label}</span>
-                </span>
-              </div>
-            </div>
-            <div className="po-field">
-              <label className="po-field-label">Payment Status</label>
-              <input className="po-small-input" value={pm.label} disabled readOnly />
-            </div>
             <div className="po-field">
               <label className="po-field-label">Total Order Value</label>
               <input className="po-small-input" value={formatCurrency(totalAmount)} disabled readOnly />
@@ -250,7 +213,6 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
           <div style={{ marginTop: 8 }}>
             <label className="po-field-label">Notes (optional)</label>
             <textarea className="po-field" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            {fieldErrors?.notes && <div className="po-field-error">{String(fieldErrors.notes)}</div>}
           </div>
 
           <div style={{ marginTop: 12 }}>
@@ -273,23 +235,17 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
                   ))}
                 </ul>
               )}
-              {searchResultsVisible && searchTerm && typedSearch.length === 0 && (
-                <ul className="po-search-results">
-                  <li className="po-search-item muted">No matches found.</li>
-                </ul>
-              )}
             </div>
           </div>
 
           <div style={{ marginTop: 16 }} className="po-table-wrap">
             {lines.length === 0 ? (
-              <div className="po-empty">No products added yet. Use the search above to add lines.</div>
+              <div className="po-empty">No products added yet.</div>
             ) : (
               <table className="po-table">
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>SKU</th>
                     <th style={{ width: 120 }}>Unit Cost</th>
                     <th style={{ width: 120 }}>Qty</th>
                     <th style={{ width: 120 }}>Line Total</th>
@@ -299,34 +255,31 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
                 <tbody>
                   {lines.map((l, idx) => (
                     <tr key={`${l.productId}-${idx}`}>
-                      <td>{l.name}</td>
-                      <td>{l.sku}</td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ color: 'var(--po-text-muted)' }}>₨</span>
-                          <input
-                            className="po-small-input"
-                            style={{ width: '100px', padding: '8px' }}
-                            type="number"
-                            step="0.01"
-                            value={l.unitPrice}
-                            onChange={(e) => updateLine(idx, { unitPrice: e.target.value === '' ? '' : Number(e.target.value) })}
-                          />
-                        </div>
+                        <div>{l.name}</div>
+                        <div className="small" style={{color: '#6b7280'}}>{l.sku}</div>
                       </td>
                       <td>
                         <input
                           className="po-small-input"
-                          style={{ width: '80px', padding: '8px' }}
+                          type="number"
+                          step="0.01"
+                          value={l.unitPrice}
+                          onChange={(e) => updateLine(idx, { unitPrice: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="po-small-input"
                           type="number"
                           min="1"
                           value={l.qty}
-                          onChange={(e) => updateLine(idx, { qty: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value || 1)) })}
+                          onChange={(e) => updateLine(idx, { qty: e.target.value })}
                         />
                       </td>
                       <td>{formatCurrency(Number(l.unitPrice || 0) * Number(l.qty || 0))}</td>
                       <td>
-                        <button className="icon-btn danger" onClick={() => removeLine(idx)} title="Remove line"><Trash2 size={16} /></button>
+                        <button className="icon-btn danger" onClick={() => removeLine(idx)}><Trash2 size={16} /></button>
                       </td>
                     </tr>
                   ))}
@@ -336,12 +289,6 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
           </div>
 
           {error && <div className="po-error" role="alert">{error}</div>}
-          {fieldErrors && (
-            <div style={{ marginTop: 8, color: '#b91c1c' }}>
-              <strong>Server errors:</strong>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(fieldErrors, null, 2)}</pre>
-            </div>
-          )}
         </div>
 
         <div className="po-modal-footer">
@@ -355,63 +302,188 @@ function CreatePOModal({ isOpen, onClose, products = [], suppliers = [], onSave,
   );
 }
 
-/* ---------------- PoDetailModal ---------------- */
-function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, onUpdatePayment, productsById = {}, userRole = 'staff', updating }) {
-  const [localStatus, setLocalStatus] = useState(po?.status || '');
-  const [amountPaid, setAmountPaid] = useState(po?.amount_paid ?? 0);
+/* ---------------- RecordPaymentModal ---------------- */
+function RecordPaymentModal({ isOpen, onClose, po, onSave }) {
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('bank_transfer');
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // map: lineKey -> qty_received (line.id preferred, fallback to product id + idx)
+  useEffect(() => {
+    if (isOpen) {
+      setAmount('');
+      setMethod('bank_transfer');
+      setReference('');
+      setNotes('');
+      setError('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  async function handleSubmit() {
+    if (!amount || Number(amount) <= 0) {
+      setError('Please enter a valid amount.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+
+    // Identify supplier ID (could be object or ID in the PO)
+    const supplierId = (typeof po.supplier === 'object' && po.supplier?.id) 
+      ? po.supplier.id 
+      : po.supplier;
+
+    try {
+      const payload = {
+        supplier: supplierId,
+        purchase_order: po.id,
+        amount: Number(amount),
+        payment_method: method,
+        reference: reference,
+        notes: notes,
+      };
+
+      // Calls backend to create payment
+      // This will automatically increment PO.amount_paid on the server side
+      await api.post('/supplier-payments/', payload);
+      
+      onSave(); // Refresh parent
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError(err?.response?.data?.detail || 'Failed to record payment');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="po-modal-overlay" onClick={onClose}>
+      <div className="po-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+        <div className="po-modal-header">
+          <h3>Record Payment</h3>
+          <button className="po-icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="po-modal-body">
+          <div className="po-field">
+            <label className="po-field-label">Amount</label>
+            <input 
+              type="number" 
+              className="po-small-input" 
+              value={amount} 
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="po-field" style={{ marginTop: 12 }}>
+            <label className="po-field-label">Payment Method</label>
+            <select className="po-small-input" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="online">Online</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="po-field" style={{ marginTop: 12 }}>
+            <label className="po-field-label">Reference / Transaction ID</label>
+            <input 
+              className="po-small-input" 
+              value={reference} 
+              onChange={(e) => setReference(e.target.value)} 
+              placeholder="e.g. TXN-12345"
+            />
+          </div>
+          <div className="po-field" style={{ marginTop: 12 }}>
+            <label className="po-field-label">Notes</label>
+            <textarea 
+              className="po-field" 
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)} 
+              rows={3}
+            />
+          </div>
+          {error && <div className="po-error" style={{marginTop: 10}}>{error}</div>}
+        </div>
+        <div className="po-modal-footer">
+          <button className="po-btn po-btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="po-btn po-btn-primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Processing...' : 'Save Payment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- PoDetailModal ---------------- */
+function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, onPaymentRecorded, productsById = {}, userRole = 'staff', updating }) {
+  const [localStatus, setLocalStatus] = useState(po?.status || '');
+  const [error, setError] = useState('');
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+
+  // map: lineKey -> qty_received
   const [receivedMap, setReceivedMap] = useState({});
   const [confirmReceived, setConfirmReceived] = useState(false);
 
   useEffect(() => {
-    setLocalStatus(po?.status || '');
-    setAmountPaid(po?.amount_paid ?? 0);
-    setError('');
+    if (po && isOpen) {
+      setLocalStatus(po.status || '');
+      setError('');
+      loadPayments(); // Fetch payment history
+      
+      const map = {};
+      (po.lines || []).forEach((ln, idx) => {
+        const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${idx}`;
+        map[key] = ln.qty_received ?? ln.qty_ordered ?? ln.qty ?? 0;
+      });
+      setReceivedMap(map);
+      setConfirmReceived(false);
+    }
+  }, [po, isOpen]);
 
-    const map = {};
-    (po?.lines || []).forEach((ln, idx) => {
-      const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${idx}`;
-      map[key] = ln.qty_received ?? ln.qty_ordered ?? ln.qty ?? 0;
-    });
-    setReceivedMap(map);
-    setConfirmReceived(false);
-  }, [po]);
+  async function loadPayments() {
+    if (!po?.id) return;
+    setLoadingPayments(true);
+    try {
+      // Backend filter: ?purchase_order_id=X
+      const res = await api.get(`/supplier-payments/?purchase_order_id=${po.id}`);
+      setPayments(Array.isArray(res.data) ? res.data : res.data.results || []);
+    } catch (e) {
+      console.error("Failed to load payments", e);
+    } finally {
+      setLoadingPayments(false);
+    }
+  }
 
   if (!isOpen || !po) return null;
 
   const meta = statusMeta(localStatus);
   const total = po.total_amount || 0;
-  const balance = total - (Number(amountPaid) || 0);
-
-  // compute payment status from (possibly edited) amountPaid and po.total_amount
-  const computedPaymentStatus = computePaymentStatus(amountPaid, po.total_amount);
-  const payMeta = paymentStatusMeta(computedPaymentStatus);
+  // Use amount_paid from PO (which includes all recorded payments)
+  const paid = po.amount_paid || 0; 
+  const balance = total - paid;
+  const payMeta = paymentStatusMeta(computePaymentStatus(paid, total));
 
   function setReceivedForLine(ln, value) {
     const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${po.lines.indexOf(ln)}`;
     setReceivedMap((m) => ({ ...m, [key]: Number(value || 0) }));
   }
 
-  // Build payload lines for PATCH when completing
   function buildLinesPayload() {
     const payload = (po.lines || []).map((ln, idx) => {
       const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${idx}`;
       const qty_received = Number(receivedMap[key] ?? ln.qty_ordered ?? ln.qty ?? 0);
-
-      if (ln.id != null) {
-        return { id: ln.id, qty_received };
-      }
-
-      // fallback: normalize product value
+      if (ln.id != null) return { id: ln.id, qty_received };
       const rawProduct = ln.product ?? ln.product_id ?? (ln.productObj && (ln.productObj.id || ln.productObj.pk));
       const productId = (typeof rawProduct === 'object' && rawProduct !== null) ? (rawProduct.id || rawProduct.pk) : rawProduct;
       return { product: productId == null ? null : Number(productId), qty_received };
     });
-
-    // eslint-disable-next-line no-console
-    console.log('Prepared PO lines payload for patch:', payload);
     return payload;
   }
 
@@ -419,27 +491,16 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, onUpdatePayment, p
     if (userRole !== 'admin') return alert('Only admins can update status.');
     setError('');
 
-    // If user is setting to completed, require confirmation checkbox
-    if (localStatus === 'completed') {
-      if (!confirmReceived) {
-        setError('Please confirm items received by checking the confirmation box.');
-        return;
-      }
+    if (localStatus === 'completed' && !confirmReceived) {
+      setError('Please confirm items received by checking the confirmation box.');
+      return;
     }
 
     try {
       if (typeof onUpdateStatus === 'function') {
         const extra = localStatus === 'completed' ? { lines: buildLinesPayload() } : undefined;
-        const maybe = onUpdateStatus(po.id, localStatus, extra);
-        if (maybe && typeof maybe.then === 'function') await maybe;
-      } else {
-        // direct API call: include lines when completing
-        const payload = localStatus === 'completed' ? { status: localStatus, lines: buildLinesPayload() } : { status: localStatus };
-        // eslint-disable-next-line no-console
-        console.log('PATCH /purchase-orders/', po.id, payload);
-        await api.patch(`/purchase-orders/${po.id}/`, payload);
+        await onUpdateStatus(po.id, localStatus, extra);
       }
-      alert('Status updated');
       onClose();
     } catch (err) {
       console.error('Save status failed', err);
@@ -447,196 +508,197 @@ function PoDetailModal({ isOpen, onClose, po, onUpdateStatus, onUpdatePayment, p
     }
   }
 
-  async function savePaymentChanges() {
-    if (userRole !== 'admin') return alert('Only admins can update payments.');
-    setError('');
-    try {
-      // compute payment status from entered amount and PO total
-      const computed = computePaymentStatus(amountPaid, po.total_amount);
-
-      if (typeof onUpdatePayment === 'function') {
-        const maybe = onUpdatePayment(po.id, Number(amountPaid), computed);
-        if (maybe && typeof maybe.then === 'function') await maybe;
-      } else {
-        // send amount_paid and computed payment_status to backend
-        await api.patch(`/purchase-orders/${po.id}/`, { amount_paid: Number(amountPaid), payment_status: computed });
-      }
-      alert('Payment updated');
-    } catch (err) {
-      console.error('Save payment failed', err);
-      setError(err?.response?.data ? JSON.stringify(err.response.data) : err.message || 'Failed to save payment');
-    }
+  function handlePaymentSuccess() {
+    loadPayments(); // Refresh list
+    onPaymentRecorded(); // Refresh parent PO data to get new amount_paid
   }
 
   return (
-    <div className="po-modal-overlay" onClick={onClose}>
-      <div className="po-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="po-modal-header">
-          <h3>PO Details — {po.po_no || po.ref || po.id}</h3>
-          <div>
+    <>
+      <div className="po-modal-overlay" onClick={onClose}>
+        <div className="po-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="po-modal-header">
+            <h3>PO Details — {po.po_no || po.ref || po.id}</h3>
             <button className="po-icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
-        </div>
 
-        <div className="po-modal-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-            <div>
-              <div className="small" style={{ color: 'var(--po-text-muted)' }}>Supplier</div>
-              <div style={{ fontWeight: 700, color: 'var(--po-text-primary)' }}>
-                {po.supplier_name || (typeof po.supplier === 'object' ? (po.supplier.name || po.supplier.company || po.supplier.id) : po.supplier) || '—'}
+          <div className="po-modal-body">
+            {/* Header Info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div className="small" style={{ color: 'var(--po-text-muted)' }}>Supplier</div>
+                <div style={{ fontWeight: 700, color: 'var(--po-text-primary)' }}>
+                  {po.supplier_name || (typeof po.supplier === 'object' ? (po.supplier.name || po.supplier.company) : po.supplier) || '—'}
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="small" style={{ color: 'var(--po-text-muted)' }}>Created</div>
-              <div>{po.created_at ? new Date(po.created_at).toLocaleString() : '—'}</div>
-            </div>
-            <div>
-              <div className="small" style={{ color: 'var(--po-text-muted)' }}>Expected</div>
-              <div>{po.expected_date ? new Date(po.expected_date).toLocaleDateString() : '—'}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div className="small" style={{ color: 'var(--po-text-muted)' }}>Status</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <div>
+                <div className="small" style={{ color: 'var(--po-text-muted)' }}>Expected</div>
+                <div>{po.expected_date ? new Date(po.expected_date).toLocaleDateString() : '—'}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className="small" style={{ color: 'var(--po-text-muted)' }}>Status</div>
                 <span className="po-badge" style={{ background: meta.color, color: '#fff' }}>{meta.label}</span>
               </div>
             </div>
-          </div>
 
-          <div className="po-payment-summary">
-            <div>
-              <div className="small">Total Value</div>
-              <div className="po-payment-value">{formatCurrency(total)}</div>
-            </div>
-            <div>
-              <div className="small">Amount Paid</div>
-              <div className="po-payment-value paid">{formatCurrency(amountPaid)}</div>
-            </div>
-            <div>
-              <div className="small">Balance Due (Credit)</div>
-              <div className="po-payment-value due">{formatCurrency(balance)}</div>
-            </div>
-            <div>
-              <div className="small">Payment Status</div>
-              <div style={{ marginTop: 4 }}>
-                <span className="po-badge" style={{ background: payMeta.color, color: '#fff' }}>{payMeta.label}</span>
+            {/* Financial Summary */}
+            <div className="po-payment-summary">
+              <div>
+                <div className="small">Total Value</div>
+                <div className="po-payment-value">{formatCurrency(total)}</div>
+              </div>
+              <div>
+                <div className="small">Amount Paid</div>
+                <div className="po-payment-value paid">{formatCurrency(paid)}</div>
+              </div>
+              <div>
+                <div className="small">Balance Due</div>
+                <div className="po-payment-value due">{formatCurrency(balance)}</div>
+              </div>
+              <div>
+                <div className="small">Payment Status</div>
+                <span className="po-badge" style={{ background: payMeta.color, color: '#fff', marginTop: 4 }}>{payMeta.label}</span>
               </div>
             </div>
-          </div>
 
-          <div style={{ marginTop: 16 }}>
-            <h4 style={{ margin: '8px 0' }}>Lines</h4>
-            <div className="po-table-wrap">
-              <table className="po-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Qty Ordered</th>
-                    <th style={{ width: 140 }}>Unit Cost</th>
-                    <th style={{ width: 140 }}>Qty Received</th>
-                    <th>Line Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(po.lines || []).map((ln, i) => {
-                    const prod = productsById[ln.product] || productsById[ln.product_id] || {};
-                    const unit = ln.unit_cost ?? ln.unitPrice ?? ln.unit_price ?? 0;
-                    const qtyOrdered = ln.qty_ordered ?? ln.qty ?? ln.quantity ?? 0;
-                    const name = ln.description || ln.product_name || prod.name || 'N/A';
-                    const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${i}`;
-                    const qtyReceived = receivedMap[key] ?? qtyOrdered;
-
-                    return (
-                      <tr key={i}>
-                        <td>{name}</td>
-                        <td>{qtyOrdered}</td>
-                        <td>{formatCurrency(unit)}</td>
-                        <td>
-                          {localStatus === 'completed' ? (
-                            <input
-                              type="number"
-                              min="0"
-                              className="po-small-input"
-                              value={qtyReceived}
-                              onChange={(e) => setReceivedForLine(ln, Math.max(0, parseInt(e.target.value || 0)))}
-                              style={{ width: 90 }}
-                            />
-                          ) : (
-                            qtyReceived
-                          )}
-                        </td>
-                        <td>{formatCurrency(Number(unit || 0) * Number(qtyOrdered || 0))}</td>
+            {/* Payment History Section */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
+                <h4 style={{ margin: 0 }}>Payments</h4>
+                {userRole === 'admin' && balance > 0 && (
+                   <button className="po-btn po-btn-primary" style={{padding: '4px 10px', fontSize: 13}} onClick={() => setIsPayModalOpen(true)}>
+                     <DollarSign size={14} style={{marginRight: 4}}/> Record Payment
+                   </button>
+                )}
+              </div>
+              
+              {loadingPayments ? (
+                <div className="small muted">Loading history...</div>
+              ) : payments.length === 0 ? (
+                <div className="small muted">No payments recorded yet.</div>
+              ) : (
+                <div className="po-table-wrap" style={{maxHeight: 150, overflowY: 'auto'}}>
+                  <table className="po-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Ref</th>
+                        <th>Method</th>
+                        <th>Amount</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="po-controls-grid" style={{ marginTop: 12 }}>
-            <div className="po-control-group">
-              <label className="po-field-label">Update Order Status</label>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <select
-                  value={localStatus}
-                  onChange={(e) => setLocalStatus(e.target.value)}
-                  className="po-small-input"
-                  disabled={userRole !== 'admin'}
-                >
-                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <button className="po-btn po-btn-secondary" onClick={saveStatus} disabled={userRole !== 'admin' || updating}>
-                  {updating ? 'Saving…' : 'Save Status'}
-                </button>
-              </div>
-
-              {localStatus === 'completed' && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input type="checkbox" checked={confirmReceived} onChange={(e) => setConfirmReceived(e.target.checked)} />
-                    <span className="small">I confirm the received quantities above match the physical items received</span>
-                  </label>
-                  <div className="small" style={{ color: '#6b7280', marginTop: 6 }}>
-                    Qty received will be sent to the server and product stock will be increased accordingly.
-                  </div>
+                    </thead>
+                    <tbody>
+                      {payments.map(pay => (
+                        <tr key={pay.id}>
+                          <td>{pay.payment_date ? new Date(pay.payment_date).toLocaleDateString() : '-'}</td>
+                          <td>{pay.reference || '-'}</td>
+                          <td style={{textTransform: 'capitalize'}}>{pay.payment_method?.replace('_', ' ')}</td>
+                          <td style={{fontWeight: 600}}>{formatCurrency(pay.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
 
-            <div className="po-control-group">
-              <label className="po-field-label">Update Payment</label>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <input
-                  type="number"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
-                  className="po-small-input"
-                  disabled={userRole !== 'admin'}
-                />
-                <button className="po-btn po-btn-secondary" onClick={savePaymentChanges} disabled={userRole !== 'admin' || updating}>
-                  {updating ? 'Saving…' : 'Save Payment'}
-                </button>
+            {/* Product Lines */}
+            <div style={{ marginTop: 20 }}>
+              <h4 style={{ margin: '8px 0' }}>Lines</h4>
+              <div className="po-table-wrap">
+                <table className="po-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Ordered</th>
+                      <th>Received</th>
+                      <th>Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(po.lines || []).map((ln, i) => {
+                      const prod = productsById[ln.product] || productsById[ln.product_id] || {};
+                      const unit = ln.unit_cost ?? ln.unitPrice ?? 0;
+                      const qtyOrdered = ln.qty_ordered ?? ln.qty ?? 0;
+                      const name = ln.description || ln.product_name || prod.name || 'N/A';
+                      const key = ln.id != null ? `id:${ln.id}` : `p:${ln.product || ln.product_id}-${i}`;
+                      const qtyReceived = receivedMap[key] ?? qtyOrdered;
+
+                      return (
+                        <tr key={i}>
+                          <td>{name}</td>
+                          <td>{qtyOrdered}</td>
+                          <td>
+                            {localStatus === 'completed' ? (
+                              <input
+                                type="number"
+                                min="0"
+                                className="po-small-input"
+                                value={qtyReceived}
+                                onChange={(e) => setReceivedForLine(ln, Math.max(0, parseInt(e.target.value || 0)))}
+                                style={{ width: 80 }}
+                              />
+                            ) : (
+                              qtyReceived
+                            )}
+                          </td>
+                          <td>{formatCurrency(Number(unit) * Number(qtyOrdered))}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
+
+            {/* Status Controls */}
+            <div className="po-controls-grid" style={{ marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 }}>
+              <div className="po-control-group">
+                <label className="po-field-label">Update Order Status</label>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <select
+                    value={localStatus}
+                    onChange={(e) => setLocalStatus(e.target.value)}
+                    className="po-small-input"
+                    disabled={userRole !== 'admin'}
+                  >
+                    {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <button className="po-btn po-btn-secondary" onClick={saveStatus} disabled={userRole !== 'admin' || updating}>
+                    {updating ? 'Saving…' : 'Save Status'}
+                  </button>
+                </div>
+                {localStatus === 'completed' && (
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input type="checkbox" checked={confirmReceived} onChange={(e) => setConfirmReceived(e.target.checked)} />
+                      <span className="small">I confirm the received quantities above match the physical items received</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {error && <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>}
           </div>
 
-          {error && <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>}
-
-          <div style={{ marginTop: 16 }}>
-            <div className="small" style={{ color: 'var(--po-text-muted)' }}>Notes</div>
-            <div style={{ color: 'var(--po-text-secondary)' }}>{po.notes || '—'}</div>
+          <div className="po-modal-footer">
+            <button className="po-btn po-btn-secondary" onClick={onClose}>Close</button>
           </div>
-        </div>
-
-        <div className="po-modal-footer">
-          <button className="po-btn po-btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>
+
+      <RecordPaymentModal 
+        isOpen={isPayModalOpen} 
+        onClose={() => setIsPayModalOpen(false)} 
+        po={po}
+        onSave={handlePaymentSuccess}
+      />
+    </>
   );
 }
 
-/* ---------------- Main PurchaseOrders Page (backend-connected) ---------------- */
+/* ---------------- Main PurchaseOrders Page ---------------- */
 export default function PurchaseOrders() {
   const auth = useAuth() || {};
   const userRole = auth?.user?.role || 'staff';
@@ -651,7 +713,6 @@ export default function PurchaseOrders() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [detailPo, setDetailPo] = useState(null);
 
-  // Load all required data
   async function loadPurchaseOrders() {
     try {
       const resp = await api.get('/purchase-orders/');
@@ -659,64 +720,49 @@ export default function PurchaseOrders() {
       setPurchaseOrders(raw);
     } catch (err) {
       console.error('Failed to load purchase orders', err);
-      alert('Could not load purchase orders. ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
     }
   }
+
   async function loadProducts() {
     try {
       const resp = await api.get('/products/');
-      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? [];
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? [];
       setProducts(raw);
-    } catch (err) {
-      console.error('Failed to load products', err);
-    }
+    } catch (err) { console.error(err); }
   }
+
   async function loadSuppliers() {
     try {
       const resp = await api.get('/suppliers/');
-      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? resp.data.data ?? [];
+      const raw = Array.isArray(resp.data) ? resp.data : resp.data.results ?? [];
       setSuppliers(raw);
-    } catch (err) {
-      console.error('Failed to load suppliers', err);
-    }
+    } catch (err) { console.error(err); }
   }
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
-      try {
-        await Promise.all([loadPurchaseOrders(), loadProducts(), loadSuppliers()]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      await Promise.all([loadPurchaseOrders(), loadProducts(), loadSuppliers()]);
+      if (mounted) setLoading(false);
     })();
     return () => { mounted = false; };
   }, []);
 
-  // create PO -> POST to backend
+  // create PO
   async function handleSavePo(payload) {
     setSavingPo(true);
     try {
-      // defensive: ensure lines.product are numeric pks
+      // Normalize product IDs
       if (Array.isArray(payload.lines)) {
         payload.lines = payload.lines.map((ln) => {
-          if (ln.product && typeof ln.product === 'object' && ln.product.id !== undefined) {
-            return { ...ln, product: Number(ln.product.id) };
-          }
-          if (ln.product !== null && ln.product !== undefined) {
-            const maybe = Number(ln.product);
-            return { ...ln, product: Number.isNaN(maybe) ? null : maybe };
-          }
+          if (ln.product && typeof ln.product === 'object' && ln.product.id !== undefined) return { ...ln, product: Number(ln.product.id) };
           return ln;
         });
       }
-
       const resp = await api.post('/purchase-orders/', payload);
-      const created = resp.data;
-      setPurchaseOrders((prev) => [created, ...prev]);
+      setPurchaseOrders((prev) => [resp.data, ...prev]);
       alert('PO created');
-      return created;
     } catch (err) {
       console.error('Create PO failed', err);
       throw err;
@@ -725,142 +771,63 @@ export default function PurchaseOrders() {
     }
   }
 
-  // DELETE PO (admin only)
+  // DELETE PO
   async function handleDeletePo(poId) {
     if (userRole !== 'admin') return alert('Only admins can delete purchase orders.');
-    if (!window.confirm('Delete this purchase order? This action cannot be undone.')) return;
-
+    if (!window.confirm('Delete this purchase order?')) return;
     setUpdating(true);
     try {
       await api.delete(`/purchase-orders/${poId}/`);
       setPurchaseOrders((prev) => prev.filter((p) => String(p.id) !== String(poId)));
-      setDetailPo((dp) => (dp && String(dp.id) === String(poId) ? null : dp));
-      alert('Purchase order deleted');
+      if (detailPo && detailPo.id === poId) setDetailPo(null);
     } catch (err) {
-      console.error('Delete PO failed', err);
-      alert('Delete failed: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
+      alert('Delete failed');
     } finally {
       setUpdating(false);
     }
   }
 
-  // update status (PATCH)
-  // Accepts optional `extra` object (e.g. { lines: [...] }) — used when completing to send qty_received
+  // UPDATE STATUS
   async function handleUpdateStatus(poId, status, extra) {
-    // ensure only allowed backend statuses are sent
-    const allowed = STATUS_OPTIONS.map((s) => s.value);
-    if (!allowed.includes(status)) {
-      const msg = `Status "${status}" is not allowed. Allowed: ${allowed.join(', ')}`;
-      console.warn(msg);
-      throw new Error(msg);
-    }
-
     setUpdating(true);
     try {
       const payload = { status, ...(extra || {}) };
-
-      // Defensive: if payload.lines exists, normalize item keys and numeric types
+      
+      // Normalize lines if present
       if (Array.isArray(payload.lines)) {
-        payload.lines = payload.lines.map((ln) => {
-          const item = { ...ln };
-
-          // prefer 'id' but accept poline_id or line_id
-          if (item.poline_id && !item.id) item.id = item.poline_id;
-          if (item.line_id && !item.id) item.id = item.line_id;
-
-          // accept 'productId' camelCase
-          if (item.productId && !item.product) item.product = item.productId;
-
-          if (item.product && typeof item.product === 'object' && item.product.id !== undefined) {
-            item.product = Number(item.product.id);
-          }
-          if (item.product !== null && item.product !== undefined) {
-            const maybe = Number(item.product);
-            item.product = Number.isNaN(maybe) ? null : maybe;
-          }
-
-          if (item.id !== undefined && item.id !== null) {
-            const mid = Number(item.id);
-            item.id = Number.isNaN(mid) ? undefined : mid;
-          }
-
-          if (item.qty_received !== undefined) {
-            item.qty_received = Number(item.qty_received || 0);
-          }
-          return item;
+        payload.lines = payload.lines.map(ln => {
+           // Basic normalization to ensure IDs are sent correctly
+           const id = ln.id || ln.poline_id;
+           return { ...ln, id };
         });
       }
-
-      // debug: log payload to console (server logs)
-      // eslint-disable-next-line no-console
-      console.log('PATCH payload for PO', poId, payload);
 
       const resp = await api.patch(`/purchase-orders/${poId}/`, payload);
       const updated = resp.data;
-
-      // If this was a completion and server returned updated lines with qty_received,
-      // update local product quantities by the delta between previous and new qty_received.
-      if (status === 'completed') {
-        const prevPo = purchaseOrders.find((p) => String(p.id) === String(poId));
-        const prevLines = prevPo?.lines || [];
-        const updatedLines = updated?.lines || [];
-
-        const deltas = {};
-        updatedLines.forEach((ln) => {
-          const newReceived = ln.qty_received ?? ln.qty_ordered ?? 0;
-          const prevLn = prevLines.find((pl) => (pl.id != null && pl.id === ln.id) || (pl.product === ln.product));
-          const prevReceived = prevLn ? (prevLn.qty_received ?? prevLn.qty_ordered ?? 0) : 0;
-          const delta = Number(newReceived) - Number(prevReceived || 0);
-          if (delta > 0) {
-            deltas[ln.product] = (deltas[ln.product] || 0) + delta;
-          }
-        });
-
-        if (Object.keys(deltas).length > 0) {
-          setProducts((prevProds) =>
-            prevProds.map((pr) => {
-              const add = deltas[pr.id];
-              if (!add) return pr;
-              return { ...pr, quantity_in_stock: (Number(pr.quantity_in_stock || 0) + add) };
-            })
-          );
-        }
-      }
-
-      // update POs + detail view
+      
+      // Update local state
       setPurchaseOrders((prev) => prev.map((p) => (String(p.id) === String(poId) ? updated : p)));
       setDetailPo((dp) => (dp && dp.id === poId ? updated : dp));
       alert('Status updated');
       return updated;
     } catch (err) {
-      console.error('Update PO status failed', err);
+      console.error('Update failed', err);
       throw err;
     } finally {
       setUpdating(false);
     }
   }
 
-  // update payment (PATCH)
-  // We only allow editing amount_paid in UI; compute payment_status automatically and send both so server stays in sync.
-  async function handleUpdatePayment(poId, amountPaidValue, _maybePaymentStatusIgnored) {
-    setUpdating(true);
+  // Called when a payment is recorded via modal to refresh the PO amount_paid
+  async function handlePaymentRecorded() {
+    if (!detailPo) return;
     try {
-      // compute payment status to keep server in sync
-      const po = purchaseOrders.find((p) => String(p.id) === String(poId));
-      const total = po?.total_amount ?? 0;
-      const computed = computePaymentStatus(amountPaidValue, total);
-
-      const resp = await api.patch(`/purchase-orders/${poId}/`, { amount_paid: Number(amountPaidValue), payment_status: computed });
+      const resp = await api.get(`/purchase-orders/${detailPo.id}/`);
       const updated = resp.data;
-      setPurchaseOrders((prev) => prev.map((p) => (String(p.id) === String(poId) ? updated : p)));
-      setDetailPo((dp) => (dp && dp.id === poId ? updated : dp));
-      alert('Payment updated');
-      return updated;
-    } catch (err) {
-      console.error('Update PO payment failed', err);
-      throw err;
-    } finally {
-      setUpdating(false);
+      setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setDetailPo(updated);
+    } catch(e) {
+      console.error("Failed to refresh PO after payment", e);
     }
   }
 
@@ -870,15 +837,12 @@ export default function PurchaseOrders() {
     return map;
   }, [products]);
 
-  // helper to display supplier friendly name
   function supplierDisplayName(po) {
     if (po?.supplier_name) return po.supplier_name;
     const supplierId = (typeof po.supplier === 'object' && po.supplier?.id) ? po.supplier.id : po.supplier;
     const s = suppliers.find((sup) => String(sup.id) === String(supplierId));
     return s ? (s.name || s.company || '—') : '—';
   }
-
-  const poList = purchaseOrders || [];
 
   return (
     <div className="po-page">
@@ -887,27 +851,19 @@ export default function PurchaseOrders() {
           <h2>Purchase Orders</h2>
           <p className="po-sub">Manage supplier purchase orders and track incoming stock</p>
         </div>
-
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="po-btn po-btn-primary" onClick={() => setIsCreateOpen(true)}><Plus size={16} /> Create PO</button>
-        </div>
+        <button className="po-btn po-btn-primary" onClick={() => setIsCreateOpen(true)}><Plus size={16} /> Create PO</button>
       </div>
 
       <div className="card po-list-card">
         <div className="po-list-header">
           <ClipboardList size={18} />
-          <span className="po-list-title">Purchase Orders ({poList.length})</span>
+          <span className="po-list-title">Purchase Orders ({purchaseOrders.length})</span>
         </div>
-
         <div className="po-card-content">
           {loading ? (
             <div className="po-empty">Loading…</div>
-          ) : poList.length === 0 ? (
-            <div className="po-empty">
-              <ClipboardList size={48} className="po-empty-icon" />
-              <p>No purchase orders found</p>
-              <button className="po-btn po-btn-primary" onClick={() => setIsCreateOpen(true)}><Plus size={16} /> Create First Purchase Order</button>
-            </div>
+          ) : purchaseOrders.length === 0 ? (
+            <div className="po-empty">No purchase orders found.</div>
           ) : (
             <div className="po-list-table-wrapper">
               <table className="po-table">
@@ -923,18 +879,14 @@ export default function PurchaseOrders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {poList.map((po) => {
+                  {purchaseOrders.map((po) => {
                     const meta = statusMeta(po.status);
-                    // prefer server-side payment_status but compute if missing or to reflect amount change
-                    const clientComputed = computePaymentStatus(po.amount_paid, po.total_amount);
-                    const effectivePaymentStatus = po.payment_status ?? clientComputed;
-                    const payMeta = paymentStatusMeta(effectivePaymentStatus);
-
+                    const payMeta = paymentStatusMeta(computePaymentStatus(po.amount_paid, po.total_amount));
                     return (
                       <tr key={po.id}>
                         <td>{po.po_no || po.ref || po.id}</td>
                         <td>{supplierDisplayName(po)}</td>
-                        <td>{po.created_at ? new Date(po.created_at).toLocaleDateString() : '—'}</td>
+                        <td>{po.created_at ? new Date(po.created_at).toLocaleDateString() : '-'}</td>
                         <td>{formatCurrency(po.total_amount)}</td>
                         <td>
                           <span className="po-payment-badge" style={{ background: (payMeta.color || '#666') + '20', color: payMeta.color }}>
@@ -943,14 +895,9 @@ export default function PurchaseOrders() {
                         </td>
                         <td><span className="po-badge" style={{ background: meta.color, color: '#fff' }}>{meta.label}</span></td>
                         <td className="po-actions-col" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                          <button className="icon-btn" title="View details" onClick={() => setDetailPo(po)}> <ClipboardList size={16} /> </button>
+                          <button className="icon-btn" onClick={() => setDetailPo(po)}><ClipboardList size={16} /></button>
                           {userRole === 'admin' && (
-                            <>
-                              <button className="icon-btn" title="Edit Payments/Status" onClick={() => setDetailPo(po)}> <Edit size={16} /> </button>
-                              <button className="icon-btn danger" title="Delete PO" onClick={() => handleDeletePo(po.id)} disabled={updating}>
-                                <Trash2 size={16} />
-                              </button>
-                            </>
+                            <button className="icon-btn danger" onClick={() => handleDeletePo(po.id)}><Trash2 size={16} /></button>
                           )}
                         </td>
                       </tr>
@@ -977,7 +924,7 @@ export default function PurchaseOrders() {
         onClose={() => setDetailPo(null)}
         po={detailPo}
         onUpdateStatus={handleUpdateStatus}
-        onUpdatePayment={handleUpdatePayment}
+        onPaymentRecorded={handlePaymentRecorded}
         productsById={productsById}
         userRole={userRole}
         updating={updating}

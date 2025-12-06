@@ -130,7 +130,6 @@ class SaleLineSerializer(serializers.ModelSerializer):
         return data
 
 
-
 class SaleSerializer(serializers.ModelSerializer):
     lines = SaleLineSerializer(many=True)
     created_by = UserSerializer(read_only=True)
@@ -138,35 +137,20 @@ class SaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Sale
         fields = ('id', 'sale_no', 'date', 'customer', 'employee', 'subtotal', 'tax', 'discount',
-                  'total_amount', 'payment_method', 'is_credit', 'created_by', 'created_at', 'lines')
+                  'total_amount', 'payment_method', 'is_credit', 'created_by', 'created_at', 'lines', 'vehicle_number')
         read_only_fields = ('id', 'date', 'created_at', 'created_by')
 
     def validate(self, data):
-        # Basic check: lines must be present
-        lines = data.get('lines') or []
-        if not lines:
+        lines = data.get('lines')
+        if lines is not None and len(lines) == 0:
             raise serializers.ValidationError("Sale must have at least one line.")
         return data
 
-    def create(self, validated_data, created_by=None, **kwargs):
-        """
-        Create Sale and nested SaleLine items.
-
-        Accepts an optional `created_by` kwarg (passed by serializer.save(created_by=...))
-        or will fallback to request.user from serializer context.
-        """
-        # Extract lines
+    def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
+        request = self.context.get('request')
+        created_by = getattr(request, 'user', None)
 
-        # Determine who created this sale (priority: explicit kwarg, then request.user)
-        if created_by is None:
-            request = self.context.get('request')
-            created_by = getattr(request, 'user', None)
-
-        # Remove any 'created_by' present inside validated_data (defensive)
-        validated_data.pop('created_by', None)
-
-        # Create sale with a single created_by value
         sale = models.Sale.objects.create(created_by=created_by, **validated_data)
 
         subtotal = 0
@@ -174,33 +158,115 @@ class SaleSerializer(serializers.ModelSerializer):
             qty = line.get('quantity', 0)
             unit = line.get('unit_price', 0)
             product = line.get('product')
-            product_name = line.get('product_name') or (getattr(product, 'name', '') if product else '')
+            product_name = line.get('product_name') or (product.name if product else '')
             line_total = float(qty) * float(unit)
             subtotal += line_total
 
-            sl = models.SaleLine.objects.create(
+            models.SaleLine.objects.create(
                 sale=sale,
                 product=product,
                 product_name=product_name,
                 sku=getattr(product, 'sku', None),
                 quantity=qty,
-                unit_price=line.get('unit_price'),
-                original_unit_price=line.get('original_unit_price', line.get('unit_price')),
+                unit_price=unit,
+                original_unit_price=line.get('original_unit_price', unit),
                 line_total=line_total
             )
 
-            # reduce stock if product exists
+            # Deduct stock
             if product:
-                product.quantity_in_stock = max(0, (product.quantity_in_stock or 0) - (qty or 0))
-                product.save(update_fields=['quantity_in_stock'])
+                models.Product.objects.filter(pk=product.pk).update(quantity_in_stock=F('quantity_in_stock') - qty)
 
-        # finalize totals
         sale.subtotal = subtotal
         sale.total_amount = validated_data.get('total_amount', subtotal)
         sale.save(update_fields=['subtotal', 'total_amount'])
         return sale
 
+    def update(self, instance, validated_data):
+        """
+        Handle updating a Sale and its Lines, including stock adjustments.
+        """
+        lines_data = validated_data.pop('lines', None)
+        
+        # 1. Update main fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
 
+        # 2. Sync Lines if provided
+        if lines_data is not None:
+            with transaction.atomic():
+                # Map existing lines by ID
+                existing_lines = {line.id: line for line in instance.lines.all()}
+                posted_line_ids = set()
+                
+                current_subtotal = 0
+
+                for line_item in lines_data:
+                    line_id = line_item.get('id') # Passed if editing an existing line
+                    
+                    qty = line_item.get('quantity', 0)
+                    unit_price = line_item.get('unit_price', 0)
+                    product = line_item.get('product')
+                    product_name = line_item.get('product_name') or (product.name if product else '')
+                    line_total = float(qty) * float(unit_price)
+                    current_subtotal += line_total
+
+                    if line_id and line_id in existing_lines:
+                        # --- UPDATE EXISTING LINE ---
+                        line_obj = existing_lines[line_id]
+                        posted_line_ids.add(line_id)
+                        
+                        # Adjust Stock: Revert old qty, apply new qty
+                        old_qty = line_obj.quantity
+                        old_prod = line_obj.product
+                        
+                        # 1. Revert old
+                        if old_prod:
+                            models.Product.objects.filter(pk=old_prod.pk).update(quantity_in_stock=F('quantity_in_stock') + old_qty)
+                        
+                        # 2. Update line fields
+                        line_obj.product = product
+                        line_obj.product_name = product_name
+                        line_obj.quantity = qty
+                        line_obj.unit_price = unit_price
+                        line_obj.line_total = line_total
+                        line_obj.save()
+
+                        # 3. Deduct new (if product exists)
+                        if product:
+                            models.Product.objects.filter(pk=product.pk).update(quantity_in_stock=F('quantity_in_stock') - qty)
+
+                    else:
+                        # --- CREATE NEW LINE ---
+                        models.SaleLine.objects.create(
+                            sale=instance,
+                            product=product,
+                            product_name=product_name,
+                            sku=getattr(product, 'sku', None),
+                            quantity=qty,
+                            unit_price=unit_price,
+                            original_unit_price=unit_price,
+                            line_total=line_total
+                        )
+                        # Deduct stock
+                        if product:
+                            models.Product.objects.filter(pk=product.pk).update(quantity_in_stock=F('quantity_in_stock') - qty)
+
+                # 3. Delete removed lines
+                for old_id, old_line in existing_lines.items():
+                    if old_id not in posted_line_ids:
+                        # Restore stock before deleting
+                        if old_line.product:
+                            models.Product.objects.filter(pk=old_line.product.pk).update(quantity_in_stock=F('quantity_in_stock') + old_line.quantity)
+                        old_line.delete()
+
+                # Update totals
+                instance.subtotal = current_subtotal
+                instance.total_amount = current_subtotal  # adjust for tax/discount if you implement them
+                instance.save()
+
+        return instance
 
 #
 # PurchaseOrder + POLine nested serializer (support nested create)
