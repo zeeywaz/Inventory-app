@@ -1143,12 +1143,8 @@ class SalesViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
-        # attach created_by if authenticated
-        user = getattr(self.request, 'user', None)
-        if user and user.is_authenticated:
-            serializer.save(created_by=user)
-        else:
-            serializer.save()
+        # The serializer.create() method already handles 'created_by' from context
+        serializer.save()
 
     # optional convenience: daily summary endpoint
     @action(detail=False, methods=['get'], url_path='daily-summary', permission_classes=[permissions.IsAuthenticated])

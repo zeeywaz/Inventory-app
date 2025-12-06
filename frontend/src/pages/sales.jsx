@@ -3,14 +3,12 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import '../styles/sales.css';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck } from 'lucide-react';
+import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck, AlertTriangle, RotateCcw } from 'lucide-react';
 
 // --- Helper Components ---
 
 function StatCard({ title, value, subValue, color }) {
   return (
-    // We pass the color as a CSS variable ('--card-color') 
-    // so the CSS ::before element can read it.
     <div className="sales-stat-card" style={{ '--card-color': color }}>
       <div className="stat-card-info">
         <span className="stat-title">{title}</span>
@@ -23,9 +21,162 @@ function StatCard({ title, value, subValue, color }) {
 
 const fmtCurrency = (v) => `₨ ${Number(v || 0).toFixed(2)}`;
 
-// --- Sale Detail Modal ---
+// --- Return Products Modal (NEW) ---
 
-function SaleDetailModal({ isOpen, onClose, sale }) {
+function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
+  const [returnMap, setReturnMap] = useState({}); // { lineId: qtyToReturn }
+  const [saving, setSaving] = useState(false);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setReturnMap({});
+      setSaving(false);
+    }
+  }, [isOpen, sale]);
+
+  if (!isOpen || !sale) return null;
+
+  const handleQtyChange = (lineId, maxQty, val) => {
+    let num = parseInt(val) || 0;
+    if (num < 0) num = 0;
+    if (num > maxQty) num = maxQty;
+    
+    setReturnMap(prev => ({
+      ...prev,
+      [lineId]: num
+    }));
+  };
+
+  // Calculate total refund amount based on selection
+  const totalRefund = (sale.lines || []).reduce((acc, line) => {
+    const qty = returnMap[line.id] || 0;
+    return acc + (qty * Number(line.unit_price));
+  }, 0);
+
+  const handleReturn = async () => {
+    if (totalRefund <= 0) {
+      alert("Please select at least one item to return.");
+      return;
+    }
+    if (!confirm(`Process return and refund ${fmtCurrency(totalRefund)}? This will restore stock.`)) return;
+
+    setSaving(true);
+    try {
+      // 1. Construct new lines array (reducing quantities)
+      const updatedLines = sale.lines.map(line => {
+        const returnQty = returnMap[line.id] || 0;
+        const newQty = line.quantity - returnQty;
+        
+        // Return the line object formatted for the serializer
+        return {
+          id: line.id,
+          product: line.product, // ID is needed
+          quantity: newQty,      // The NEW reduced quantity
+          unit_price: line.unit_price
+        };
+      }).filter(l => l.quantity > 0); // Remove lines that are fully returned (0 qty)
+
+      // 2. Append a note to the sale history
+      const today = new Date().toLocaleDateString();
+      const returnNote = `\n[${today}] Returned items. Refund: ${fmtCurrency(totalRefund)}.`;
+      const newNotes = (sale.notes || '') + returnNote;
+
+      // 3. Recalculate totals
+      const newTotal = updatedLines.reduce((acc, l) => acc + (l.quantity * l.unit_price), 0);
+
+      // 4. Send Payload
+      const payload = {
+        lines: updatedLines,
+        notes: newNotes,
+        total_amount: newTotal,
+        subtotal: newTotal
+      };
+
+      const res = await api.patch(`/sales/${sale.id}/`, payload);
+      onConfirm(res.data); // Refresh parent
+      onClose();
+    } catch (e) {
+      console.error(e);
+      alert("Failed to process return. Check console.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="sales-modal-overlay" onClick={onClose}>
+      <div className="sales-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+        <div className="sales-modal-header">
+          <h3>Return Products</h3>
+          <button className="icon-btn" onClick={onClose}><X size={20}/></button>
+        </div>
+        <div className="sales-modal-body">
+          <p style={{color: '#6b7280', marginBottom: '1.5rem', fontSize: '0.9rem'}}>
+            Select quantities to return. Stock will be restored automatically.
+          </p>
+
+          <div className="sales-table-wrapper">
+            <table className="sales-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th style={{textAlign: 'center'}}>Sold</th>
+                  <th style={{textAlign: 'center', width: '100px'}}>Return Qty</th>
+                  <th style={{textAlign: 'right'}}>Refund Amt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sale.lines.map(line => {
+                  const returnQty = returnMap[line.id] || 0;
+                  const refundAmt = returnQty * Number(line.unit_price);
+                  return (
+                    <tr key={line.id} style={{ backgroundColor: returnQty > 0 ? '#fff7ed' : 'transparent' }}>
+                      <td>
+                        <div style={{fontWeight: 600}}>{line.product_name}</div>
+                        <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>{fmtCurrency(line.unit_price)} each</div>
+                      </td>
+                      <td style={{textAlign: 'center'}}>{line.quantity}</td>
+                      <td style={{textAlign: 'center'}}>
+                        <input 
+                          type="number" 
+                          className="clean-input" 
+                          style={{padding: '6px', textAlign: 'center'}}
+                          value={returnQty}
+                          onChange={(e) => handleQtyChange(line.id, line.quantity, e.target.value)}
+                        />
+                      </td>
+                      <td style={{textAlign: 'right', fontWeight: 600, color: returnQty > 0 ? '#ea580c' : 'inherit'}}>
+                        {fmtCurrency(refundAmt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="sales-footer-summary">
+            <div className="total-display">
+              <span style={{color: '#ea580c'}}>Total Refund</span>
+              <span className="amount" style={{color: '#ea580c'}}>{fmtCurrency(totalRefund)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="sales-modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{backgroundColor: '#ea580c'}} onClick={handleReturn} disabled={saving || totalRefund <= 0}>
+            {saving ? 'Processing...' : 'Confirm Return'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Sale Detail Modal (UPDATED) ---
+
+function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   if (!isOpen || !sale) return null;
   const get = (k) => sale[k] ?? sale[k === 'totalAmount' ? 'total_amount' : k];
 
@@ -47,7 +198,6 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
               <label>Customer</label>
               <div>{sale.customer_name || sale.customerName || 'Walk-in'}</div>
             </div>
-            {/* NEW: Vehicle Display */}
             <div>
               <label>Vehicle Plate</label>
               <div style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>
@@ -60,9 +210,16 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
             </div>
           </div>
           
-          <div style={{ textAlign: 'right', marginTop: '-1rem', marginBottom: '1rem' }}>
-             <label style={{fontSize: '0.8rem', color:'#6b7280', textTransform:'uppercase', fontWeight:600}}>Total Amount</label>
-             <div className="sales-total-large">{fmtCurrency(get('total_amount'))}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', marginTop: '-1rem' }}>
+             {/* Return Button */}
+             <button className="btn btn-secondary" onClick={() => onOpenReturn(sale)} style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
+                <RotateCcw size={16} style={{marginRight: 6}} /> Return Products
+             </button>
+
+             <div style={{ textAlign: 'right' }}>
+               <label style={{fontSize: '0.8rem', color:'#6b7280', textTransform:'uppercase', fontWeight:600}}>Total Amount</label>
+               <div className="sales-total-large">{fmtCurrency(get('total_amount'))}</div>
+             </div>
           </div>
 
           <h4 style={{ marginTop: '20px', marginBottom: '10px' }}>Items</h4>
@@ -88,6 +245,16 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
               </tbody>
             </table>
           </div>
+
+          {/* Show Notes if they exist (e.g. Return history) */}
+          {sale.notes && (
+            <div style={{ marginTop: '20px', background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+              <label style={{fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase'}}>Notes / History</label>
+              <div style={{whiteSpace: 'pre-line', fontSize: '0.9rem', color: '#374151', marginTop: '4px'}}>
+                {sale.notes}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="sales-modal-footer">
@@ -98,43 +265,40 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
   );
 }
 
-// --- Create/Edit Modal ---
+// --- Create/Edit Modal (Existing) ---
 
 function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, existing = null, saving = false }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerId, setCustomerId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  // NEW: Vehicle State
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [notes, setNotes] = useState('');
   
-  // Line item states
   const [selectedProductId, setSelectedProductId] = useState('');
   const [lineQty, setLineQty] = useState(1);
   const [lineUnitPrice, setLineUnitPrice] = useState('');
+  const [priceWarning, setPriceWarning] = useState(null);
+
   const [lines, setLines] = useState([]);
   const [error, setError] = useState('');
 
-  // Initialize form
   useEffect(() => {
     if (isOpen) {
       if (existing) {
         setDate(existing.date ? existing.date.slice(0,10) : new Date().toISOString().slice(0,10));
         setCustomerId(existing.customer || '');
         setPaymentMethod(existing.payment_method || 'cash');
-        // NEW: Load existing vehicle number
         setVehicleNumber(existing.vehicle_number || existing.vehicleNumber || '');
         setNotes(existing.notes || '');
         setLines((existing.lines || []).map(ln => ({
-          uniqueId: Math.random(), // frontend key
-          id: ln.id, // backend ID for updates
+          uniqueId: Math.random(), 
+          id: ln.id, 
           productId: ln.product,
           productName: ln.product_name || ln.productName,
           quantity: ln.quantity,
           unitPrice: ln.unit_price || ln.unitPrice
         })));
       } else {
-        // Reset for new bill
         setDate(new Date().toISOString().slice(0,10));
         setCustomerId('');
         setPaymentMethod('cash');
@@ -146,14 +310,31 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
       setSelectedProductId('');
       setLineQty(1);
       setLineUnitPrice('');
+      setPriceWarning(null);
     }
   }, [isOpen, existing]);
 
-  // Update unit price when product selected
   useEffect(() => {
     const p = products.find(prod => String(prod.id) === String(selectedProductId));
-    if (p) setLineUnitPrice(p.selling_price || 0);
+    if (p) {
+      setLineUnitPrice(p.selling_price || 0);
+    } else {
+      setLineUnitPrice('');
+    }
   }, [selectedProductId, products]);
+
+  useEffect(() => {
+    setPriceWarning(null);
+    if (!selectedProductId || !lineUnitPrice) return;
+    const p = products.find(prod => String(prod.id) === String(selectedProductId));
+    if (p) {
+      const minPrice = parseFloat(p.minimum_selling_price || 0);
+      const currentPrice = parseFloat(lineUnitPrice);
+      if (minPrice > 0 && currentPrice < minPrice) {
+        setPriceWarning(`Warning: Below minimum price (${fmtCurrency(minPrice)})`);
+      }
+    }
+  }, [lineUnitPrice, selectedProductId, products]);
 
   function addLine() {
     if (!selectedProductId) return;
@@ -169,6 +350,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     setSelectedProductId('');
     setLineQty(1);
     setLineUnitPrice('');
+    setPriceWarning(null);
   }
 
   function removeLine(uniqueId) {
@@ -182,12 +364,10 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
       setError("Please add at least one item.");
       return;
     }
-
     const payload = {
       date,
       customer: customerId || null,
       payment_method: paymentMethod,
-      // NEW: Send vehicle number
       vehicle_number: vehicleNumber || '',
       notes,
       total_amount: subtotal,
@@ -223,9 +403,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
           <h3>{existing ? 'Edit Bill' : 'New Bill'}</h3>
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
-        
         <div className="sales-modal-body">
-          {/* Top Form - Organized into 2 Rows for cleaner look */}
           <div className="form-row">
             <div className="form-group" style={{flex: 0.5}}>
               <label>Date</label>
@@ -239,24 +417,14 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </select>
             </div>
           </div>
-
           <div className="form-row">
-            {/* NEW: Vehicle Plate Input */}
             <div className="form-group">
               <label>Vehicle Plate # (Optional)</label>
               <div style={{position:'relative'}}>
-                <input 
-                  type="text" 
-                  className="clean-input" 
-                  placeholder="e.g. ABC-1234" 
-                  value={vehicleNumber} 
-                  onChange={e => setVehicleNumber(e.target.value.toUpperCase())} 
-                  style={{paddingLeft: '2.2rem'}}
-                />
+                <input type="text" className="clean-input" placeholder="e.g. ABC-1234" value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value.toUpperCase())} style={{paddingLeft: '2.2rem'}} />
                 <Truck size={16} style={{position:'absolute', left:'0.8rem', top:'50%', transform:'translateY(-50%)', color:'#9ca3af'}}/>
               </div>
             </div>
-
             <div className="form-group">
               <label>Payment Method</label>
               <select className="clean-input" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
@@ -267,10 +435,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </select>
             </div>
           </div>
-
           <hr style={{border:0, borderTop:'1px solid #f3f4f6', margin:'1.5rem 0'}}/>
-
-          {/* Add Line Section */}
           <div className="add-line-box">
             <div className="form-group" style={{ flex: 2 }}>
               <select className="clean-input" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
@@ -284,12 +449,15 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               <input type="number" className="clean-input" placeholder="Qty" value={lineQty} onChange={e => setLineQty(e.target.value)} />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <input type="number" className="clean-input" placeholder="Price" value={lineUnitPrice} onChange={e => setLineUnitPrice(e.target.value)} />
+              <input type="number" className={`clean-input ${priceWarning ? 'warning-border' : ''}`} placeholder="Price" value={lineUnitPrice} onChange={e => setLineUnitPrice(e.target.value)} />
+              {priceWarning && (
+                <div style={{color: '#f59e0b', fontSize: '0.75rem', marginTop: '4px', display:'flex', alignItems:'center', gap:'4px'}}>
+                  <AlertTriangle size={12}/> {priceWarning}
+                </div>
+              )}
             </div>
             <button className="btn btn-primary" onClick={addLine}><Plus size={16}/> Add</button>
           </div>
-
-          {/* Lines Table */}
           <div className="sales-table-wrapper" style={{ maxHeight: '250px', minHeight: '150px' }}>
             <table className="sales-table">
               <thead>
@@ -320,7 +488,6 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </tbody>
             </table>
           </div>
-
           <div className="sales-footer-summary">
             <div style={{flex: 1, marginRight: '2rem'}}>
               <label>Notes</label>
@@ -331,10 +498,8 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               <span className="amount">{fmtCurrency(subtotal)}</span>
             </div>
           </div>
-          
           {error && <div className="error-msg">{error}</div>}
         </div>
-
         <div className="sales-modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
@@ -359,7 +524,9 @@ export default function Sales() {
   
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
+  
   const [detailSale, setDetailSale] = useState(null);
+  const [returnSale, setReturnSale] = useState(null); // State for return modal
 
   useEffect(() => {
     loadData();
@@ -388,6 +555,15 @@ export default function Sales() {
       if (exists) return prev.map(s => s.id === savedSale.id ? savedSale : s);
       return [savedSale, ...prev];
     });
+  }
+
+  // Handle updates from Return modal
+  function handleReturnUpdate(updatedSale) {
+    setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
+    // Also update the detail view if it's open
+    if (detailSale && detailSale.id === updatedSale.id) {
+      setDetailSale(updatedSale);
+    }
   }
 
   async function deleteSale(id) {
@@ -444,7 +620,6 @@ export default function Sales() {
                   <td className="mono-font">#{String(s.sale_no || s.id).slice(-6)}</td>
                   <td>{new Date(s.date).toLocaleDateString()}</td>
                   <td>{s.customer_name || 'Walk-in'}</td>
-                  {/* NEW: Vehicle Column in List */}
                   <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
                   <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
                   <td style={{fontWeight: 'bold'}}>{fmtCurrency(s.total_amount)}</td>
@@ -477,10 +652,20 @@ export default function Sales() {
         onSave={handleSave}
       />
 
+      {/* Sale Detail Modal now passes a handler to open Return Modal */}
       <SaleDetailModal 
         isOpen={!!detailSale} 
         onClose={() => setDetailSale(null)} 
         sale={detailSale} 
+        onOpenReturn={(s) => setReturnSale(s)}
+      />
+
+      {/* The New Return Modal */}
+      <ReturnModal 
+        isOpen={!!returnSale}
+        onClose={() => setReturnSale(null)}
+        sale={returnSale}
+        onConfirm={handleReturnUpdate}
       />
     </div>
   );

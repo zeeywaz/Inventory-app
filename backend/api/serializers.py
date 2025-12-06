@@ -130,6 +130,8 @@ class SaleLineSerializer(serializers.ModelSerializer):
         return data
 
 
+# api/serializers.py
+
 class SaleSerializer(serializers.ModelSerializer):
     lines = SaleLineSerializer(many=True)
     created_by = UserSerializer(read_only=True)
@@ -140,13 +142,11 @@ class SaleSerializer(serializers.ModelSerializer):
                   'total_amount', 'payment_method', 'is_credit', 'created_by', 'created_at', 'lines', 'vehicle_number')
         read_only_fields = ('id', 'date', 'created_at', 'created_by')
 
-    def validate(self, data):
-        lines = data.get('lines')
-        if lines is not None and len(lines) == 0:
-            raise serializers.ValidationError("Sale must have at least one line.")
-        return data
+    # --- DELETE THE validate METHOD THAT WAS HERE ---
+    # We removed it to allow empty lines (Full Returns)
 
     def create(self, validated_data):
+        # ... (Keep your existing create logic exactly as is) ...
         lines_data = validated_data.pop('lines', [])
         request = self.context.get('request')
         created_by = getattr(request, 'user', None)
@@ -183,9 +183,9 @@ class SaleSerializer(serializers.ModelSerializer):
         return sale
 
     def update(self, instance, validated_data):
-        """
-        Handle updating a Sale and its Lines, including stock adjustments.
-        """
+        # ... (Keep your existing update logic exactly as is) ...
+        # ... The logic we wrote earlier handles empty lines correctly 
+        # ... by deleting the old lines and restoring stock.
         lines_data = validated_data.pop('lines', None)
         
         # 1. Update main fields
