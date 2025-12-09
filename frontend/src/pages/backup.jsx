@@ -1,250 +1,210 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import '../styles/backup.css';
-import { useData } from '../contexts/DataContext';
-import { Download, Upload, Database } from 'lucide-react';
+import api from '../api'; // Your axios client
+import { useAuth } from '../contexts/AuthContext';
+import { Download, Upload, Database, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
 
 export default function BackupRestore() {
-  const {
-    products = [],
-    sales = [],
-    expenses = [],
-    exportData,
-    importData,
-    settings = {}
-  } = useData() || { products: [], sales: [], expenses: [], exportData: null, importData: null };
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.is_superuser;
 
   const fileInputRef = useRef(null);
-  const [importing, setImporting] = useState(false);
-  const [lastActivity, setLastActivity] = useState(settings.lastActivity || new Date().toLocaleString());
-  const [storageMethod] = useState(settings.storageMethod || 'Browser Local Storage');
-  const [autoSaveEnabled] = useState(settings.autoSave ?? true);
-  const [importPreviewName, setImportPreviewName] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({ products: 0, sales: 0, expenses: 0 });
+  const [message, setMessage] = useState(null); // { type: 'success'|'error', text: '' }
 
-  const safeExportData = () => {
-    // Prefer context exportData if provided, else assemble from context arrays
-    try {
-      if (typeof exportData === 'function') {
-        const result = exportData();
-        // some contexts return object, some return string
-        return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  // Fetch current stats just for display
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const [p, s, e] = await Promise.all([
+          api.get('/products/'),
+          api.get('/sales/'),
+          api.get('/expenses/')
+        ]);
+        // Handle pagination response or array
+        const count = (res) => Array.isArray(res.data) ? res.data.length : (res.data.count || 0);
+        setStats({
+          products: count(p),
+          sales: count(s),
+          expenses: count(e)
+        });
+      } catch (err) {
+        console.error("Failed to load stats", err);
       }
-      // fallback minimal export
-      return JSON.stringify({ products, sales, expenses, settings }, null, 2);
-    } catch (err) {
-      console.error('Export failed:', err);
-      return JSON.stringify({ products, sales, expenses, settings }, null, 2);
     }
-  };
+    loadStats();
+  }, []);
 
-  const handleExport = () => {
+  // --- EXPORT HANDLER ---
+  const handleExport = async () => {
+    if (!isAdmin) return alert("Access Denied");
+    
+    setMessage(null);
+    setLoading(true);
     try {
-      const json = safeExportData();
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const ts = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `automod-backup-${ts}.json`;
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      setLastActivity(new Date().toLocaleString());
-      alert('Backup exported — save the JSON file somewhere safe.');
+      // 1. Request the file from backend (responseType: blob is crucial)
+      const response = await api.get('/system/backup/', { responseType: 'blob' });
+      
+      // 2. Create a download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Try to get filename from header, or generate one
+      const contentDisp = response.headers['content-disposition'];
+      let filename = `inventory_backup_${new Date().toISOString().slice(0,10)}.json`;
+      if (contentDisp && contentDisp.includes('filename=')) {
+        filename = contentDisp.split('filename=')[1].replace(/"/g, '');
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      setMessage({ type: 'success', text: 'Backup downloaded successfully.' });
     } catch (err) {
       console.error(err);
-      alert('Failed to export backup. See console for details.');
+      setMessage({ type: 'error', text: 'Failed to download backup.' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFileChoose = () => {
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
-
-  const readFileAsText = (file) => new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload = () => res(reader.result);
-    reader.onerror = () => rej(new Error('Failed to read file'));
-    reader.readAsText(file, 'utf-8');
-  });
-
+  // --- IMPORT HANDLER ---
   const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    setImportPreviewName(file.name);
+
+    // Reset input so same file can be selected again if needed
+    e.target.value = '';
+
+    const confirmMsg = `WARNING: Restoring "${file.name}" will MERGE data into your database.\n\nExisting records with the same ID will be overwritten.\nNew records will be created.\n\nAre you sure you want to proceed?`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    setMessage(null);
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-      const text = await readFileAsText(file);
-      let parsed = null;
-      try {
-        parsed = JSON.parse(text);
-      } catch (err) {
-        throw new Error('Selected file is not valid JSON.');
-      }
-
-      // show a confirmation explaining merge behavior
-      const proceed = window.confirm(
-        `You chose "${file.name}".\n\n` +
-        'Importing will merge data from this JSON into the current database (it may add new items and/or override existing ones depending on import logic).\n\n' +
-        'Make sure you exported a current backup before importing if you want to preserve current data.\n\nProceed with import?'
-      );
-
-      if (!proceed) {
-        setImportPreviewName(null);
-        fileInputRef.current.value = ''; // reset
-        return;
-      }
-
-      setImporting(true);
-      // if context provides importData, use it (expected to merge)
-      if (typeof importData === 'function') {
-        const res = importData(parsed);
-        // importData might return boolean or object with success
-        if (res === true || (res && res.success)) {
-          alert('Backup imported successfully.');
-        } else {
-          // try to provide more insight
-          alert('Import finished (context returned a non-success value). Check console for details.');
-          console.warn('importData returned:', res);
-        }
-      } else {
-        // No import function — attempt a best-effort local merge (non-persistent)
-        console.warn('No importData function provided in context — performing a temporary merge in-memory (not saved).');
-        alert('No import function in context. JSON was parsed but not merged into the application data store.');
-      }
-
-      setLastActivity(new Date().toLocaleString());
+      // Post to backend
+      const res = await api.post('/system/backup/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setMessage({ type: 'success', text: `Restore Successful: ${res.data.log || 'Data merged.'}` });
+      // Reload page to reflect changes or re-fetch stats
+      setTimeout(() => window.location.reload(), 2000);
+      
     } catch (err) {
       console.error(err);
-      alert(`Import failed: ${err.message || err}`);
+      const msg = err.response?.data?.detail || err.message || "Upload failed";
+      setMessage({ type: 'error', text: `Restore Failed: ${msg}` });
     } finally {
-      setImporting(false);
-      setImportPreviewName(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setLoading(false);
     }
   };
 
-  const handleImportClick = () => {
-    // forward to file chooser
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
+  if (!isAdmin) {
+    return (
+      <div className="backup-page" style={{display:'flex', alignItems:'center', justifyContent:'center', height:'60vh'}}>
+        <div style={{textAlign:'center', color:'#6b7280'}}>
+          <ShieldAlert size={48} style={{color:'#ef4444', marginBottom: 16}}/>
+          <h2>Access Restricted</h2>
+          <p>Only administrators can perform backups.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="backup-page">
       <div className="backup-header">
         <div>
           <h1>Backup & Restore</h1>
-          <p className="backup-sub">Protect your data by creating regular backups</p>
-        </div>
-        <div className="backup-actions">
-          <button className="btn export-btn" onClick={handleExport}>
-            <Download size={16}/> Export Backup
-          </button>
-          <button className="btn import-btn ghost" onClick={handleFileChoose}>
-            <Upload size={16}/> Import
-          </button>
-          <input ref={fileInputRef} type="file" accept="application/json" onChange={handleFileChange} style={{display: 'none'}} />
+          <p className="backup-sub">Database management and disaster recovery</p>
         </div>
       </div>
 
+      {/* Stats Summary */}
       <div className="backup-card">
         <div className="backup-card-head">
-          <div className="backup-card-title"><Database size={18}/> Current Data Summary</div>
-          <div className="backup-card-sub">Overview of your current database</div>
+          <div className="backup-card-title"><Database size={18}/> Live Database Status</div>
         </div>
-
         <div className="backup-summary">
           <div className="backup-stat stat-products">
             <div className="stat-label">Products</div>
-            <div className="stat-value">{products.length}</div>
+            <div className="stat-value">{stats.products}</div>
           </div>
-
           <div className="backup-stat stat-sales">
             <div className="stat-label">Sales</div>
-            <div className="stat-value">{sales.length}</div>
+            <div className="stat-value">{stats.sales}</div>
           </div>
-
           <div className="backup-stat stat-expenses">
             <div className="stat-label">Expenses</div>
-            <div className="stat-value">{expenses.length}</div>
+            <div className="stat-value">{stats.expenses}</div>
           </div>
         </div>
       </div>
 
+      {/* Status Message */}
+      {message && (
+        <div className={`backup-message ${message.type}`}>
+          {message.type === 'success' ? <CheckCircle size={18}/> : <AlertTriangle size={18}/>}
+          <span>{message.text}</span>
+        </div>
+      )}
+
+      {/* Export Section */}
       <div className="backup-card export-card">
-        <h3 className="section-title">Export Backup</h3>
-        <p className="section-sub">Download all your data as a JSON file. Store this file safely as a backup.</p>
-
+        <h3 className="section-title">Export Database</h3>
+        <p className="section-sub">
+          Generate a full JSON dump of your PostgreSQL database (Products, Sales, Customers, etc.).
+        </p>
         <div className="export-row">
-          <div className="export-info">
-            <div className="export-title">Create Backup File</div>
-            <div className="export-desc">This will download a complete backup of all products, sales, and expenses data.</div>
-          </div>
           <div className="export-actions">
-            <button className="btn export-btn" onClick={handleExport}><Download size={16} /> Export</button>
+            <button className="btn export-btn" onClick={handleExport} disabled={loading}>
+              <Download size={16} /> 
+              {loading ? 'Processing...' : 'Download Backup'}
+            </button>
           </div>
-        </div>
-
-        <div className="backup-notes">
-          <div className="notes-title">Backup Best Practices:</div>
-          <ul>
-            <li>Create backups daily or weekly</li>
-            <li>Store backups in multiple safe locations</li>
-            <li>Test restore procedure periodically</li>
-            <li>Keep multiple backup versions</li>
-          </ul>
         </div>
       </div>
 
+      {/* Import Section */}
       <div className="backup-card import-card">
-        <h3 className="section-title">Import Backup</h3>
-        <p className="section-sub">Restore data from a previously exported backup file.</p>
+        <h3 className="section-title">Restore Database</h3>
+        <p className="section-sub">
+          Upload a previously exported JSON file. This process uses Django's <code>loaddata</code> to merge records.
+        </p>
 
         <div className="import-row">
-          <div className="import-info">
-            <div className="import-title">Restore from Backup</div>
-            <div className="import-desc">Select a backup JSON file to restore your data. This will merge with existing data.</div>
-          </div>
-
           <div className="import-actions">
-            <button className="btn import-choose" onClick={handleImportClick}><Upload size={16} /> Choose File</button>
-            <button className="btn import-confirm ghost" onClick={() => {
-              if (fileInputRef.current) fileInputRef.current.click();
-            }}>Import</button>
+            <button className="btn import-choose" onClick={() => fileInputRef.current.click()} disabled={loading}>
+              <Upload size={16} /> 
+              {loading ? 'Restoring...' : 'Select Backup File'}
+            </button>
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept=".json" 
+              onChange={handleFileChange} 
+              style={{display: 'none'}} 
+            />
           </div>
         </div>
 
         <div className="import-warning">
-          <div className="warn-title">Warning:</div>
+          <div className="warn-title"><AlertTriangle size={16}/> Warning:</div>
           <div className="warn-text">
-            Importing a backup will add data to your current database. Make sure to export a current backup first if you want to preserve your existing data.
+            This action will <strong>merge</strong> data. If a record in the backup has the same ID as a record in the database, the database version will be <strong>overwritten</strong>. New IDs will be created.
           </div>
         </div>
       </div>
-
-      <div className="backup-card system-card">
-        <h3 className="section-title">System Information</h3>
-
-        <div className="system-row">
-          <div className="system-left">Storage Method:</div>
-          <div className="system-right">{storageMethod}</div>
-        </div>
-
-        <div className="system-row">
-          <div className="system-left">Auto-save:</div>
-          <div className="system-right">{autoSaveEnabled ? <span className="status-enabled">Enabled</span> : <span className="status-disabled">Disabled</span>}</div>
-        </div>
-
-        <div className="system-row">
-          <div className="system-left">Last Activity:</div>
-          <div className="system-right">{lastActivity}</div>
-        </div>
-      </div>
-
-      <div style={{height: 28}} /> {/* spacing */}
     </div>
   );
 }

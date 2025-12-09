@@ -1158,3 +1158,77 @@ class SalesViewSet(viewsets.ModelViewSet):
         qs = models.Sale.objects.filter(date=d)
         total = qs.aggregate(total=Sum('total_amount'))['total'] or 0.0
         return Response({"date": d.isoformat(), "count": qs.count(), "total": float(total)}, status=status.HTTP_200_OK)
+
+
+
+# api/views.py
+
+# ... existing imports ...
+from django.core.management import call_command
+from django.http import HttpResponse
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser
+import io
+import json
+import os
+from django.conf import settings
+
+# ... existing ViewSets ...
+
+class SystemBackupView(APIView):
+    """
+    GET: Download a JSON dump of the 'api' app data.
+    POST: Upload a JSON file to restore/merge data using 'loaddata'.
+    """
+    # Only admins should access this!
+    permission_classes = [permissions.IsAdminUser] 
+    parser_classes = [MultiPartParser]
+
+    def get(self, request):
+        """Generates a JSON backup of the 'api' app."""
+        buffer = io.StringIO()
+        
+        # 'dumpdata' serializes the DB. We filter for only the 'api' app models.
+        # You can add other apps if needed (e.g., 'auth').
+        try:
+            call_command('dumpdata', 'api', indent=2, stdout=buffer)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        buffer.seek(0)
+        data = buffer.read()
+        
+        # Return as a downloadable file
+        response = HttpResponse(data, content_type='application/json')
+        filename = f"inventory_backup_{timezone.now().strftime('%Y-%m-%d_%H-%M')}.json"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    def post(self, request):
+        """Restores data from an uploaded JSON file."""
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Save temp file (loaddata requires a file path)
+        temp_path = os.path.join(settings.BASE_DIR, 'temp_restore.json')
+        
+        try:
+            with open(temp_path, 'wb+') as destination:
+                for chunk in file_obj.chunks():
+                    destination.write(chunk)
+
+            # 2. Run loaddata
+            # This merges data: updates matching IDs, creates new ones.
+            out = io.StringIO()
+            call_command('loaddata', temp_path, stdout=out)
+            
+            result_msg = out.getvalue()
+            return Response({"detail": "Restore successful", "log": result_msg}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": f"Restore failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            # 3. Cleanup
+            if os.path.exists(temp_path):
+                os.remove(temp_path)

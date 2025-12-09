@@ -1,40 +1,66 @@
 // src/pages/dashboard.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import '../styles/dashboard.css';
-import { useData } from '../contexts/DataContext';
+import api from '../api'; 
 import { useAuth } from '../contexts/AuthContext';
-import { ShoppingCart, Package, TrendingUp, DollarSign, BarChart, Users, Briefcase, Wallet } from 'lucide-react';
+import { 
+  ShoppingCart, TrendingUp, BarChart, Users, Briefcase, 
+  X, Truck, CreditCard, ArrowDownLeft, ArrowUpRight 
+} from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { X } from 'lucide-react';
 
-// small Sale Detail modal (reused UI)
+const fmt = (amt) => `₨ ${(Number(amt) || 0).toFixed(2)}`;
+
+// --- Sale Detail Modal (Unchanged) ---
 function SaleDetailModal({ isOpen, onClose, sale }) {
   if (!isOpen || !sale) return null;
-  const fmt = (amt) => `₨ ${(Number(amt) || 0).toFixed(2)}`;
+  
+  const total = sale.total_amount ?? sale.totalAmount ?? 0;
+  const customerName = sale.customer_name ?? sale.customerName ?? 'Walk-in';
+  const vehicle = sale.vehicle_number ?? sale.vehicleNumber;
+
   return (
     <div className="bill-modal-overlay" onClick={onClose}>
       <div className="bill-modal-content sale-detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bill-modal-header">
-          <h3>Sale Details (#{(sale.id || '').toString().slice(-6)})</h3>
+          <h3>Sale Details (#{String(sale.sale_no || sale.id).slice(-6)})</h3>
           <button type="button" className="bill-modal-close" onClick={onClose} aria-label="Close details"><X size={20} /></button>
         </div>
         <div className="bill-modal-body">
-          <div><strong>Date:</strong> {new Date(sale.date).toLocaleString()}</div>
-          <div><strong>Customer:</strong> {sale.customerName || 'Walk-in'}</div>
-          {sale.vehicleNumber && <div><strong>Vehicle #:</strong> {sale.vehicleNumber}</div>}
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'15px'}}>
+            <div>
+                <span className="small" style={{display:'block', color:'#6b7280'}}>Date</span>
+                <strong>{new Date(sale.date).toLocaleString()}</strong>
+            </div>
+            <div>
+                <span className="small" style={{display:'block', color:'#6b7280'}}>Customer</span>
+                <strong>{customerName}</strong>
+            </div>
+            {vehicle && (
+                <div>
+                    <span className="small" style={{display:'block', color:'#6b7280'}}>Vehicle</span>
+                    <strong>{vehicle}</strong>
+                </div>
+            )}
+             <div>
+                <span className="small" style={{display:'block', color:'#6b7280'}}>Payment</span>
+                <strong style={{textTransform:'capitalize'}}>{sale.payment_method || 'Cash'}</strong>
+            </div>
+          </div>
+
           <h4>Items</h4>
           <div className="bill-table-wrapper">
             <table className="bill-table detail-table">
-              <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+              <thead><tr><th>Product</th><th style={{textAlign:'center'}}>Qty</th><th style={{textAlign:'right'}}>Unit</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
               <tbody>
                 {(sale.lines || []).map((ln, i) => (
                   <tr key={i}>
-                    <td>{ln.productName}</td>
-                    <td>{ln.quantity}</td>
-                    <td>{fmt(ln.unitPrice)}</td>
-                    <td>{fmt(ln.unitPrice * (ln.quantity || 0))}</td>
+                    <td>{ln.product_name || ln.productName}</td>
+                    <td style={{textAlign:'center'}}>{ln.quantity}</td>
+                    <td style={{textAlign:'right'}}>{fmt(ln.unit_price || ln.unitPrice)}</td>
+                    <td style={{textAlign:'right'}}>{fmt(ln.line_total || ((ln.unit_price || 0) * (ln.quantity || 0)))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -44,7 +70,7 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
           <div className="bill-summary-section detail-summary">
             <div className="summary-line grand-total-line">
               <span className="grand-total-label">Grand Total</span>
-              <span className="grand-total-value">{fmt(sale.totalAmount)}</span>
+              <span className="grand-total-value">{fmt(total)}</span>
             </div>
           </div>
         </div>
@@ -57,59 +83,187 @@ function SaleDetailModal({ isOpen, onClose, sale }) {
   );
 }
 
+// --- Helper for Stat Cards ---
+function StatCard({ title, value, subValue, color, icon }) {
+  return (
+    <div className="card stat-card" style={{ '--card-color': color }}>
+      <div className="stat-card-info">
+        <span className="stat-title">{title}</span>
+        <span className="stat-value">{value}</span>
+        <span className="stat-subvalue">{subValue}</span>
+      </div>
+    </div>
+  );
+}
+
+// --- Main Dashboard Component ---
 export default function Dashboard() {
-  const { sales = [], products = [], customers = [] } = useData() || {};
-  const { isAdmin = false, isStaff = false } = useAuth() || {};
+  const { user } = useAuth() || {};
+  
+  const isAdmin = user?.role === 'admin' || user?.is_superuser;
+  // const isStaff = user?.role === 'staff';
+
+  // State for data
+  const [sales, setSales] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modal state
   const [detailSale, setDetailSale] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        // Fetch all necessary data points
+        const [salesRes, productsRes, customersRes, expensesRes, poRes] = await Promise.all([
+          api.get('/sales/'),
+          api.get('/products/'),
+          api.get('/customers/'),
+          api.get('/expenses/'),
+          api.get('/purchase-orders/')
+        ]);
+
+        const getResults = (res) => Array.isArray(res.data) ? res.data : (res.data.results || []);
+
+        setSales(getResults(salesRes));
+        setProducts(getResults(productsRes));
+        setCustomers(getResults(customersRes));
+        setExpenses(getResults(expensesRes));
+        setPurchaseOrders(getResults(poRes));
+
+      } catch (error) {
+        console.error("Dashboard data fetch failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardData();
+  }, []);
+
+  // --- 1. KEY METRICS CALCULATIONS ---
   const todayStr = new Date().toDateString();
-  const todaySalesRecords = (sales || []).filter((s) => new Date(s.date).toDateString() === todayStr);
+  
+  // Sales Logic
+  const todaySalesRecords = sales.filter((s) => new Date(s.date).toDateString() === todayStr);
   const todaySalesCount = todaySalesRecords.length;
-  const todayRevenue = todaySalesRecords.reduce((sum, s) => sum + (Number(s.totalAmount ?? s.total_amount ?? 0) || 0), 0);
-  const allStocked = (products || []).length;
-  const inventoryValue = (products || []).reduce((sum, p) => sum + (Number(p.costPrice ?? p.cost_price ?? 0) || 0) * (Number(p.quantityInStock ?? p.quantity_in_stock ?? 0) || 0), 0);
-  const totalCustomers = (customers || []).length;
+  const todayRevenue = todaySalesRecords.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
+  
+  // Inventory Logic
+  const allStocked = products.length;
+  const inventoryValue = products.reduce((sum, p) => 
+    sum + ((Number(p.cost_price) || 0) * (Number(p.quantity_in_stock) || 0)), 0);
 
-  const salesTrendData = [{ name: 'Tue', sales: 0 }, { name: 'Wed', sales: 0 }, { name: 'Thu', sales: 0 }, { name: 'Fri', sales: 0 }, { name: 'Sat', sales: 0 }, { name: 'Sun', sales: 0 }, { name: 'Mon', sales: 0 }];
+  // --- 2. BUSINESS SUMMARY LOGIC (NEW) ---
+  
+  // A. Today's Expenses
+  const todayExpenses = expenses
+    .filter(e => new Date(e.date).toDateString() === todayStr)
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-  const recentSales = (sales || []).slice(-5).reverse();
+  // B. Supplier Payables (Outstanding payments to suppliers)
+  const supplierPayables = purchaseOrders.reduce((sum, po) => {
+    if (po.status === 'cancelled') return sum;
+    const total = Number(po.total_amount) || 0;
+    const paid = Number(po.amount_paid) || 0;
+    const due = total - paid;
+    return sum + (due > 0 ? due : 0);
+  }, 0);
+
+  // C. Customer Receivables (Outstanding credit given to customers)
+  const customerReceivables = customers.reduce((sum, c) => sum + (Number(c.credited_amount) || 0), 0);
+
+  // --- 3. CHART & RECENT SALES ---
+  const salesTrendData = useMemo(() => {
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last7Days.push(d);
+    }
+    return last7Days.map(date => {
+      const dateStr = date.toDateString();
+      const daysSales = sales.filter(s => new Date(s.date).toDateString() === dateStr);
+      const dailyTotal = daysSales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
+      return {
+        name: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        sales: dailyTotal
+      };
+    });
+  }, [sales]);
+
+  const recentSales = useMemo(() => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const tStr = today.toDateString();
+    const yStr = yesterday.toDateString();
+
+    return sales.filter(s => {
+      const sDate = new Date(s.date).toDateString();
+      return sDate === tStr || sDate === yStr;
+    });
+  }, [sales]);
 
   function openDetail(sale) { setDetailSale(sale); setDetailOpen(true); }
   function closeDetail() { setDetailSale(null); setDetailOpen(false); }
 
+  if (loading) {
+    return <div className="dashboard" style={{display:'flex', justifyContent:'center', alignItems:'center', height:'50vh', color:'#6b7280'}}>Loading Dashboard...</div>;
+  }
+
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <div className="header-title"><h1>Dashboard</h1><p>Welcome back! Here's your business overview.</p></div>
+        <div className="header-title">
+          <h1>Dashboard</h1>
+          <p>Welcome back, {user?.username || 'User'}! Here's your business overview.</p>
+        </div>
         <div className="header-last-updated">Last updated: {new Date().toLocaleTimeString()}</div>
       </div>
 
-      {/* Stat cards: staff sees fewer */}
+      {/* Top Stats - Quick Glances */}
       <div className="stat-card-grid">
         <div style={{ gridColumn: isAdmin ? undefined : 'span 1' }}>
-          <div className="card stat-card" style={{ ['--card-color']: '#00c4d2ff' }}>
-            <div className="stat-card-info"><span className="stat-title">Today's Sales</span><span className="stat-value">{todaySalesCount}</span><span className="stat-subvalue">transactions</span></div>
-          </div>
+          <StatCard 
+            title="Today's Sales" 
+            value={todaySalesCount} 
+            subValue="transactions" 
+            color="#00c4d2ff" 
+          />
         </div>
 
         <div>
-          <div className="card stat-card" style={{ ['--card-color']: '#8b5cf6' }}>
-            <div className="stat-card-info"><span className="stat-title">Inventory</span><span className="stat-value">{allStocked}</span><span className="stat-subvalue">All stocked</span></div>
-          </div>
+          <StatCard 
+            title="Inventory Items" 
+            value={allStocked} 
+            subValue="Unique Products" 
+            color="#8b5cf6" 
+          />
         </div>
 
         {isAdmin && (
           <>
             <div>
-              <div className="card stat-card" style={{ ['--card-color']: '#10b981' }}>
-                <div className="stat-card-info"><span className="stat-title">Today's Profit</span><span className="stat-value">₨ 0.00</span><span className="stat-subvalue">$ 0.00 - $ 0.00</span></div>
-              </div>
+              <StatCard 
+                title="Today's Revenue" 
+                value={fmt(todayRevenue)} 
+                subValue="Gross Income" 
+                color="#10b981" 
+              />
             </div>
             <div>
-              <div className="card stat-card" style={{ ['--card-color']: '#f59e0b' }}>
-                <div className="stat-card-info"><span className="stat-title">Outstanding Credit</span><span className="stat-value">₨ 0.00</span><span className="stat-subvalue">0 customers</span></div>
-              </div>
+              <StatCard 
+                title="Today's Expenses" 
+                value={fmt(todayExpenses)} 
+                subValue="Operational Cost" 
+                color="#ef4444" 
+              />
             </div>
           </>
         )}
@@ -126,8 +280,11 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} />
                     <YAxis axisLine={false} tickLine={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={2} />
+                    <Tooltip 
+                      formatter={(value) => [`Rs ${value.toFixed(2)}`, 'Revenue']}
+                      labelStyle={{ color: '#374151' }}
+                    />
+                    <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -136,34 +293,36 @@ export default function Dashboard() {
 
           <div className="card recent-sales-card">
             <div className="card-header">
-              <h2 className="card-title">Recent Sales</h2>
+              <h2 className="card-title">Recent Sales (Today & Yesterday)</h2>
               <span className="count-badge">{recentSales.length}</span>
             </div>
             <div className="card-content">
               {recentSales.length === 0 ? (
                 <div className="empty-state">
                   <ShoppingCart size={48} className="empty-icon" />
-                  <p>No sales recorded yet</p>
+                  <p>No sales recorded in the last 48 hours.</p>
                 </div>
               ) : (
                 <ul className="sales-list">
                   {recentSales.map((sale) => {
-                    const total = Number(sale.totalAmount || sale.total_amount || 0) || 0;
+                    const total = Number(sale.total_amount || 0);
+                    const isToday = new Date(sale.date).toDateString() === todayStr;
                     return (
                       <li
-                        key={sale.id ?? sale.date}
+                        key={sale.id}
                         className="sales-list-item"
                         onClick={() => openDetail(sale)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(sale); }}
-                        aria-label={`Open sale ${sale.id}`}
                       >
                         <div className="sale-info">
-                          <span className="sale-customer">{sale.customerName ?? 'Walk-in'}</span>
-                          <span className="sale-date">{new Date(sale.date).toLocaleDateString()}</span>
+                          <span className="sale-customer">{sale.customer_name || sale.customerName || 'Walk-in'}</span>
+                          <span className="sale-date">
+                            {isToday ? 'Today' : 'Yesterday'} • {new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
                         </div>
-                        <span className="sale-total">{(isStaff && !isAdmin) ? '—' : `₨ ${total.toFixed(2)}`}</span>
+                        <span className="sale-total">{fmt(total)}</span>
                       </li>
                     );
                   })}
@@ -173,40 +332,61 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* admin-only right column */}
+        {/* Admin-only Financial Summary */}
         {isAdmin && (
           <div className="main-col-right">
-            <div className="card payment-methods-card">
-              <h2 className="card-title">Payment Methods</h2>
-              <div className="empty-state-small"><p>No payment data available</p></div>
-            </div>
-
             <div className="card business-summary-card">
-              <h2 className="card-title">Business Summary</h2>
+              <h2 className="card-title">Financial Health</h2>
               <div className="card-content">
+                
+                {/* 1. Accounts Receivable (Money People Owe You) */}
                 <div className="summary-item">
-                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#dbeafe' }}><BarChart size={18} /></div>
-                  <div className="summary-text"><span className="summary-title">Weekly Revenue</span><span className="summary-subtitle">0 sales</span></div>
-                  <span className="summary-value">₨ 0.00</span>
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#dbeafe', color: '#2563eb' }}>
+                    <ArrowDownLeft size={20} />
+                  </div>
+                  <div className="summary-text">
+                    <span className="summary-title">Customer Credit</span>
+                    <span className="summary-subtitle">Accounts Receivable</span>
+                  </div>
+                  <span className="summary-value">{fmt(customerReceivables)}</span>
                 </div>
 
+                {/* 2. Accounts Payable (Money You Owe Suppliers) */}
                 <div className="summary-item">
-                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#aba2d4ff' }}><Briefcase size={18} /></div>
-                  <div className="summary-text"><span className="summary-title">Inventory Value</span><span className="summary-subtitle">{allStocked} products</span></div>
-                  <span className="summary-value">₨ {inventoryValue.toFixed(2)}</span>
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#ffedd5', color: '#ea580c' }}>
+                    <Truck size={20} />
+                  </div>
+                  <div className="summary-text">
+                    <span className="summary-title">Supplier Due</span>
+                    <span className="summary-subtitle">Accounts Payable</span>
+                  </div>
+                  <span className="summary-value">{fmt(supplierPayables)}</span>
                 </div>
 
+                {/* 3. Operational Expenses (Today) */}
                 <div className="summary-item">
-                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#fee2e2' }}><Users size={18} /></div>
-                  <div className="summary-text"><span className="summary-title">Total Customers</span><span className="summary-subtitle">0 with credit</span></div>
-                  <span className="summary-value">{totalCustomers}</span>
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>
+                    <CreditCard size={20} />
+                  </div>
+                  <div className="summary-text">
+                    <span className="summary-title">Daily Expenses</span>
+                    <span className="summary-subtitle">Operational Costs</span>
+                  </div>
+                  <span className="summary-value">{fmt(todayExpenses)}</span>
                 </div>
 
+                {/* 4. Asset Value */}
                 <div className="summary-item">
-                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#dcfce7' }}><Wallet size={18} /></div>
-                  <div className="summary-text"><span className="summary-title">Monthly Revenue</span><span className="summary-subtitle">0 sales</span></div>
-                  <span className="summary-value">₨ 0.00</span>
+                  <div className="summary-icon-wrapper" style={{ backgroundColor: '#f3f4f6', color: '#4b5563' }}>
+                    <Briefcase size={20} />
+                  </div>
+                  <div className="summary-text">
+                    <span className="summary-title">Inventory Asset</span>
+                    <span className="summary-subtitle">Total Cost Basis</span>
+                  </div>
+                  <span className="summary-value">{fmt(inventoryValue)}</span>
                 </div>
+
               </div>
             </div>
           </div>
