@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 // --- CONTEXTS (This is the fix for the blank screen!) ---
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
-
+import { SettingsProvider } from './contexts/SettingsContext';
 // --- YOUR COMPONENTS & PAGES ---
 import { Layout } from './components/Layout';
 import LoginPage from './pages/login';
@@ -56,6 +56,7 @@ export default function App() {
     // All components need to be inside these providers!
     <AuthProvider>
       <DataProvider>
+        <SettingsProvider>
         <BrowserRouter>
           <Routes>
             
@@ -92,6 +93,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
         {/* <Toaster /> You'll need to import this when ready */}
+        </SettingsProvider>
       </DataProvider>
     </AuthProvider>
   );

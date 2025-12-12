@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import (
 from .views import (
     ProductViewSet, AttendanceViewSet, EmployeeViewSet, CustomerViewSet,
     SupplierViewSet, health_check, SupplierPaymentViewSet, InquiryViewSet,
-    ExpenseViewSet, PurchaseOrderViewSet, POLineViewSet, current_user, SalesViewSet, SystemBackupView
+    ExpenseViewSet, PurchaseOrderViewSet, POLineViewSet, current_user, SalesViewSet, SystemBackupView, SystemSettingView
 )
 
 router = DefaultRouter()
@@ -33,7 +33,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/me/', current_user, name='current_user'),
     path('system/backup/', SystemBackupView.as_view(), name='system-backup'),
-
+    path('system/settings/', SystemSettingView.as_view(), name='system-settings'),
     # 3. Utilities
     path('health/', health_check, name='health-check'),
 ]

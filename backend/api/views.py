@@ -135,40 +135,61 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='adjust-stock', permission_classes=[permissions.IsAuthenticated])
     def adjust_stock(self, request, pk=None):
         user = request.user
+        # Auth check
         if not (user and user.is_authenticated and (user.is_superuser or user.is_staff or getattr(user, 'role', None) in ('admin','staff'))):
             return Response({"detail": "Authentication required (admin or staff)."}, status=status.HTTP_401_UNAUTHORIZED)
 
         product = get_object_or_404(models.Product, pk=pk)
-        try:
-            change = int(request.data.get('change'))
-        except Exception:
-            return Response({"detail": "Please provide integer 'change' (positive or negative)."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # --- NEW LOGIC: Support absolute 'new_quantity' ---
+        change = request.data.get('change')
+        new_quantity_input = request.data.get('new_quantity')
+        
+        if new_quantity_input is not None:
+            try:
+                target_qty = int(new_quantity_input)
+                current_qty = product.quantity_in_stock or 0
+                change = target_qty - current_qty
+            except (ValueError, TypeError):
+                return Response({"detail": "Invalid new_quantity"}, status=status.HTTP_400_BAD_REQUEST)
+        elif change is not None:
+            try:
+                change = int(change)
+            except (ValueError, TypeError):
+                return Response({"detail": "Invalid change value"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+             return Response({"detail": "Provide 'change' (delta) or 'new_quantity' (absolute)."}, status=status.HTTP_400_BAD_REQUEST)
+        # --------------------------------------------------
 
         reason = request.data.get('reason', '')[:255]
         notes = request.data.get('notes', '')
 
+        # Calculate final
         new_qty = (product.quantity_in_stock or 0) + change
         if new_qty < 0:
             return Response({"detail": "Resulting stock cannot be negative."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Do the update
         with transaction.atomic():
-            if hasattr(product, 'updated_at'):
-                product.save(update_fields=['quantity_in_stock', 'updated_at'])
-            else:
-                product.save(update_fields=['quantity_in_stock'])
-            movement = models.InventoryMovement.objects.create(
-                product=product,
-                change_qty=change,
-                reason=reason or ('Manual adjust' if change != 0 else 'No-op'),
-                performed_by=user,
-                notes=notes
-            )
+            product.quantity_in_stock = new_qty
+            product.save(update_fields=['quantity_in_stock', 'updated_at'])
+            
+            # Only record movement if there was a change
+            movement = None
+            if change != 0:
+                movement = models.InventoryMovement.objects.create(
+                    product=product,
+                    change_qty=change,
+                    reason=reason or 'Stock adjusted',
+                    performed_by=user,
+                    notes=notes
+                )
 
         return Response({
             "detail": "Stock adjusted",
             "product_id": product.id,
             "new_quantity": new_qty,
-            "movement_id": movement.id
+            "movement_id": movement.id if movement else None
         }, status=status.HTTP_200_OK)
 
 
@@ -1232,3 +1253,37 @@ class SystemBackupView(APIView):
             # 3. Cleanup
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+
+
+
+# api/views.py
+
+# ... existing imports ...
+from .models import SystemSetting
+from .serializers import SystemSettingSerializer
+
+class SystemSettingView(APIView):
+    """
+    GET: Retrieve global settings (creates defaults if missing).
+    PATCH: Update settings (Admin only).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Get or create the singleton record (pk=1)
+        settings_obj, created = SystemSetting.objects.get_or_create(pk=1)
+        serializer = SystemSettingSerializer(settings_obj)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        # Only admins can change settings
+        if not (request.user.is_superuser or getattr(request.user, 'role', '') == 'admin'):
+            return Response({"detail": "Admin permission required."}, status=status.HTTP_403_FORBIDDEN)
+
+        settings_obj, _ = SystemSetting.objects.get_or_create(pk=1)
+        serializer = SystemSettingSerializer(settings_obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

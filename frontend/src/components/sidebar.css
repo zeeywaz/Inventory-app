@@ -1,3 +1,5 @@
+/* src/components/sidebar.css */
+
 /* --- Global Variables & Root --- */
 :root {
   --sidebar-width: 260px;
@@ -261,4 +263,3 @@
     margin-right: 0;
   }
 }
-

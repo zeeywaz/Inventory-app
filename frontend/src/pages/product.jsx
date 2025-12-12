@@ -1,8 +1,9 @@
-// src/pages/ProductsPage.jsx
+// src/pages/product.jsx
 import React, { useMemo, useState, useEffect } from 'react';
 import '../styles/product.css';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../api'; // axios client configured with baseURL and token/refresh logic
+import { useSettings } from '../contexts/SettingsContext'; // <--- Import Settings
+import api from '../api'; 
 import {
   Plus,
   Search,
@@ -26,7 +27,7 @@ function StatCard({ title, value, colorClass }) {
 }
 
 /* ---------------------------
-   Modals (unchanged markup, wired to callbacks)
+   Modals
    --------------------------- */
 
 function EditProductModal({ open, product = null, onClose, onSave }) {
@@ -175,11 +176,13 @@ function EditStockModal({ open, product, onClose, onSaveStock }) {
 }
 
 /* ---------------------------
-   Main Page (wired to backend)
+   Main Page
    --------------------------- */
 
 export default function ProductsPage() {
-  const { user, token, role } = useAuth() || {}; // expects your AuthContext to expose token and role
+  const { user, role } = useAuth() || {}; 
+  const { settings } = useSettings(); // <--- 1. Get Settings
+  
   const isAdmin = role === 'admin' || user?.role === 'admin';
   const isStaff = role === 'staff' || user?.role === 'staff';
 
@@ -191,7 +194,15 @@ export default function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // --- Axios-based helpers using shared api client ---
+  // --- Logic to check visibility ---
+  // If settings say "Show Cost to Staff", then staff can see it. Admins always see it.
+  const showCost = isAdmin || settings.showCostToStaff;
+  
+  // If settings say "Staff Can Edit Stock Only", then disable full edit for staff.
+  // Admins always have full edit.
+  const canEditDetails = isAdmin || !settings.staffCanEditStockOnly;
+
+  // --- API Helpers ---
   const apiGet = async (path, params = {}) => {
     const resp = await api.get(path, { params });
     return resp.data;
@@ -209,13 +220,10 @@ export default function ProductsPage() {
     return resp;
   };
 
-  // fetch products
   const loadProducts = async () => {
     setLoading(true);
     try {
-      // We expect backend route: GET /api/products/
       const data = await apiGet('/products/');
-      // backend may return array or paginated { results: [...] }
       const items = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
       setProducts(items);
     } catch (err) {
@@ -227,9 +235,8 @@ export default function ProductsPage() {
     }
   };
 
-  useEffect(() => { loadProducts(); }, []); // load once on mount
+  useEffect(() => { loadProducts(); }, []);
 
-  // client-side search/filter (category removed)
   useEffect(() => {
     const q = search.trim().toLowerCase();
     if (!q) { setFiltered(products); return; }
@@ -242,7 +249,6 @@ export default function ProductsPage() {
     }));
   }, [search, products]);
 
-  // stats
   const stats = useMemo(() => {
     const total = products.length;
     const inStock = products.filter(p => (p.quantity_in_stock ?? 0) > 0).length;
@@ -268,9 +274,7 @@ export default function ProductsPage() {
     setStockModalOpen(true);
   }
 
-  /* ---------------------------
-     API mutation helpers
-     --------------------------- */
+  // --- API Actions ---
 
   async function createProduct(payload) {
     const body = {
@@ -299,8 +303,6 @@ export default function ProductsPage() {
       body.minimum_selling_price = body.min_selling_price;
       delete body.min_selling_price;
     }
-
-    // ensure canonical vehicle key (if someone still passes vehicle_for)
     if (body.vehicle === undefined && body.vehicle_for !== undefined) {
       body.vehicle = body.vehicle_for;
       delete body.vehicle_for;
@@ -331,36 +333,42 @@ export default function ProductsPage() {
 
   async function updateStock(productId, { quantity_in_stock }) {
     try {
-      const existing = products.find(p => String(p.id) === String(productId));
-      const currentQty = existing ? (existing.quantity_in_stock ?? 0) : 0;
-      const change = Number(quantity_in_stock) - Number(currentQty);
+      // OPTIMIZED: Send the new quantity directly. 
+      // The server will calculate the difference (delta) and record the movement.
+      // This avoids the extra GET request that was causing 401 errors.
+      await apiPost(`/products/${productId}/adjust-stock/`, { 
+        new_quantity: Number(quantity_in_stock), 
+        reason: 'Stock updated via UI' 
+      });
 
-      // Preferred: call adjust-stock action which creates inventory movement
-      try {
-        await apiPost(`/products/${productId}/adjust-stock/`, { change, reason: 'Stock updated via UI' });
-      } catch (innerErr) {
-        // If backend lacks adjust-stock action, fallback to PATCHing product qty
-        console.warn('adjust-stock failed, falling back to product patch', innerErr);
-        await apiPatch(`/products/${productId}/`, { quantity_in_stock });
-      }
-
-      // refresh (could optimize to fetch only one product)
+      // Refresh list
       await loadProducts();
+      
+      // Close modal and notify
+      alert('Stock updated');
+      setStockModalOpen(false);
+
     } catch (err) {
       console.error('updateStock error', err);
-      const msg = err?.response?.data?.detail || err?.response?.data || err.message || String(err);
-      throw new Error(msg);
+      // Fallback: If adjust-stock endpoint isn't updated yet, try the old patch method
+      try {
+          console.warn("Trying fallback patch...");
+          await apiPatch(`/products/${productId}/`, { quantity_in_stock: Number(quantity_in_stock) });
+          await loadProducts();
+          setStockModalOpen(false);
+      } catch (fallbackErr) {
+          const msg = err?.response?.data?.detail || err.message || "Failed to update";
+          alert('Stock update failed: ' + msg);
+      }
     }
   }
 
-  /* ---------------------------
-     UI event handlers that call above helpers
-     --------------------------- */
+  // --- Handlers ---
 
   async function handleSaveProduct(payload) {
     try {
       if (selectedProduct && selectedProduct.id) {
-        if (!isAdmin) { alert('Only admins can edit product details.'); return; }
+        if (!canEditDetails) { alert('Only admins can edit product details.'); return; }
         await updateProduct(selectedProduct.id, payload);
         alert('Saved');
       } else {
@@ -398,10 +406,6 @@ export default function ProductsPage() {
       alert('Delete failed: ' + (err.message || err));
     }
   }
-
-  /* ---------------------------
-     Render
-     --------------------------- */
 
   const displayed = filtered;
 
@@ -448,7 +452,8 @@ export default function ProductsPage() {
                 <th>Product</th>
                 <th>SKU</th>
                 <th>Stock</th>
-                {isAdmin && <th>Cost</th>}
+                {/* 2. Condition for Cost Column */}
+                {showCost && <th>Cost</th>}
                 <th>Price</th>
                 <th>Min Price</th>
                 <th>Vehicle</th>
@@ -457,7 +462,7 @@ export default function ProductsPage() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={isAdmin ? 8 : 7} className="pi-empty">Loading products...</td></tr>
+                <tr><td colSpan={showCost ? 8 : 7} className="pi-empty">Loading products...</td></tr>
               )}
 
               {!loading && displayed.map((p) => {
@@ -477,23 +482,23 @@ export default function ProductsPage() {
                       </div>
                     </td>
 
-                    {isAdmin && <td>₨ {Number(p.cost_price ?? 0).toFixed(2)}</td>}
-                    {!isAdmin && <>{/* hide cost from staff */}</>}
+                    {/* 2. Condition for Cost Cell */}
+                    {showCost && <td>₨ {Number(p.cost_price ?? 0).toFixed(2)}</td>}
 
                     <td>₨ {Number(p.selling_price ?? 0).toFixed(2)}</td>
                     <td className="pi-min-price">₨ {Number(minPrice).toFixed(2)}</td>
                     <td>{p.vehicle ?? 'Universal'}</td>
 
                     <td className="pi-actions-col">
-                      {isAdmin ? (
+                       {/* 3. Logic for Edit Button Visibility */}
+                      {canEditDetails ? (
                         <>
                           <button className="icon-btn" title="Edit product" onClick={() => openEditProduct(p)}><Edit2 size={16} /></button>
-                          <button className="icon-btn danger" title="Delete product" onClick={() => handleDelete(p)}><Trash2 size={16} /></button>
+                          {isAdmin && <button className="icon-btn danger" title="Delete product" onClick={() => handleDelete(p)}><Trash2 size={16} /></button>}
                         </>
                       ) : (
-                        <>
-                          <button className="icon-btn" title="View / edit stock" onClick={() => openStockModal(p)}><Edit3 size={16} /></button>
-                        </>
+                        // If cannot edit details, show simple Stock button or nothing
+                        <button className="icon-btn" title="View / edit stock" onClick={() => openStockModal(p)}><Edit3 size={16} /></button>
                       )}
                     </td>
                   </tr>
@@ -502,7 +507,7 @@ export default function ProductsPage() {
 
               {!loading && displayed.length === 0 && (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="pi-empty">No products found.</td>
+                  <td colSpan={showCost ? 8 : 7} className="pi-empty">No products found.</td>
                 </tr>
               )}
             </tbody>

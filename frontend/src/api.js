@@ -1,63 +1,76 @@
-import axios from "axios";
+// src/api.js
+import axios from 'axios';
 
-const API_BASE = "http://localhost:8000/api"; // REAL Django API
+// 1. Point directly to your Django backend
+const API_BASE_URL = 'http://localhost:8000/api';
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: API_BASE_URL,
   headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
-// Add auth token to every request
+// --- Interceptor 1: Attach Token ---
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem('access_token');
     if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Handle expired access token
+// --- Interceptor 2: Handle Errors & Refresh ---
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
+    // A. STOP THE LOOP:
+    // If the error comes from login or refresh endpoint, DO NOT try to refresh again.
+    // Just let the error pass to the Login Page so it can show "Invalid Password".
+    if (
+        error.config.url.includes('/token/') || 
+        error.config.url.includes('/login')
+    ) {
+        return Promise.reject(error);
+    }
+
+    // B. Handle actual session expiry (401) on other pages
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem("refresh_token");
+      const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
-        window.location.href = "/login";
+        // No refresh token? Go to login.
+        window.location.href = '/login';
         return Promise.reject(error);
       }
 
       try {
-        const rs = await axios.post(
-          `${API_BASE}/token/refresh/`,
-          { refresh: refreshToken },
-          { headers: { "Content-Type": "application/json" } }
-        );
+        // Attempt to get a new token
+        // We use axios.post (not api.post) to avoid circular interceptors
+        const rs = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+          refresh: refreshToken,
+        });
 
         const { access } = rs.data;
+        localStorage.setItem('access_token', access);
 
-        localStorage.setItem("access_token", access);
-
-        api.defaults.headers["Authorization"] = `Bearer ${access}`;
-        originalRequest.headers["Authorization"] = `Bearer ${access}`;
-
+        // Update headers and retry original request
+        api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+        originalRequest.headers['Authorization'] = `Bearer ${access}`;
         return api(originalRequest);
-      } catch (refreshErr) {
-        console.error("Token refresh failed:", refreshErr);
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        window.location.href = "/login";
-        return Promise.reject(refreshErr);
+
+      } catch (refreshError) {
+        console.error("Session expired completely:", refreshError);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
       }
     }
 

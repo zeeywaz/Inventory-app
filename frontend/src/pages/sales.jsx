@@ -3,7 +3,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import '../styles/sales.css';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck, AlertTriangle, RotateCcw } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext'; // <--- Import Settings
+import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck, AlertTriangle, RotateCcw, Lock } from 'lucide-react';
 
 // --- Helper Components ---
 
@@ -21,13 +22,11 @@ function StatCard({ title, value, subValue, color }) {
 
 const fmtCurrency = (v) => `₨ ${Number(v || 0).toFixed(2)}`;
 
-// --- Return Products Modal (NEW) ---
-
+// --- Return Products Modal (Unchanged) ---
 function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
-  const [returnMap, setReturnMap] = useState({}); // { lineId: qtyToReturn }
+  const [returnMap, setReturnMap] = useState({}); 
   const [saving, setSaving] = useState(false);
 
-  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setReturnMap({});
@@ -42,13 +41,9 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
     if (num < 0) num = 0;
     if (num > maxQty) num = maxQty;
     
-    setReturnMap(prev => ({
-      ...prev,
-      [lineId]: num
-    }));
+    setReturnMap(prev => ({ ...prev, [lineId]: num }));
   };
 
-  // Calculate total refund amount based on selection
   const totalRefund = (sale.lines || []).reduce((acc, line) => {
     const qty = returnMap[line.id] || 0;
     return acc + (qty * Number(line.unit_price));
@@ -63,29 +58,22 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
 
     setSaving(true);
     try {
-      // 1. Construct new lines array (reducing quantities)
       const updatedLines = sale.lines.map(line => {
         const returnQty = returnMap[line.id] || 0;
         const newQty = line.quantity - returnQty;
-        
-        // Return the line object formatted for the serializer
         return {
           id: line.id,
-          product: line.product, // ID is needed
-          quantity: newQty,      // The NEW reduced quantity
+          product: line.product,
+          quantity: newQty,
           unit_price: line.unit_price
         };
-      }).filter(l => l.quantity > 0); // Remove lines that are fully returned (0 qty)
+      }).filter(l => l.quantity > 0); 
 
-      // 2. Append a note to the sale history
       const today = new Date().toLocaleDateString();
       const returnNote = `\n[${today}] Returned items. Refund: ${fmtCurrency(totalRefund)}.`;
       const newNotes = (sale.notes || '') + returnNote;
-
-      // 3. Recalculate totals
       const newTotal = updatedLines.reduce((acc, l) => acc + (l.quantity * l.unit_price), 0);
 
-      // 4. Send Payload
       const payload = {
         lines: updatedLines,
         notes: newNotes,
@@ -94,7 +82,7 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
       };
 
       const res = await api.patch(`/sales/${sale.id}/`, payload);
-      onConfirm(res.data); // Refresh parent
+      onConfirm(res.data);
       onClose();
     } catch (e) {
       console.error(e);
@@ -115,7 +103,6 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
           <p style={{color: '#6b7280', marginBottom: '1.5rem', fontSize: '0.9rem'}}>
             Select quantities to return. Stock will be restored automatically.
           </p>
-
           <div className="sales-table-wrapper">
             <table className="sales-table">
               <thead>
@@ -155,7 +142,6 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
               </tbody>
             </table>
           </div>
-
           <div className="sales-footer-summary">
             <div className="total-display">
               <span style={{color: '#ea580c'}}>Total Refund</span>
@@ -174,8 +160,7 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   );
 }
 
-// --- Sale Detail Modal (UPDATED) ---
-
+// --- Sale Detail Modal ---
 function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   if (!isOpen || !sale) return null;
   const get = (k) => sale[k] ?? sale[k === 'totalAmount' ? 'total_amount' : k];
@@ -211,11 +196,9 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
           </div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', marginTop: '-1rem' }}>
-             {/* Return Button */}
              <button className="btn btn-secondary" onClick={() => onOpenReturn(sale)} style={{ fontSize: '0.85rem', padding: '8px 12px' }}>
                 <RotateCcw size={16} style={{marginRight: 6}} /> Return Products
              </button>
-
              <div style={{ textAlign: 'right' }}>
                <label style={{fontSize: '0.8rem', color:'#6b7280', textTransform:'uppercase', fontWeight:600}}>Total Amount</label>
                <div className="sales-total-large">{fmtCurrency(get('total_amount'))}</div>
@@ -246,7 +229,6 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
             </table>
           </div>
 
-          {/* Show Notes if they exist (e.g. Return history) */}
           {sale.notes && (
             <div style={{ marginTop: '20px', background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
               <label style={{fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase'}}>Notes / History</label>
@@ -265,9 +247,13 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   );
 }
 
-// --- Create/Edit Modal (Existing) ---
+// --- Create/Edit Modal ---
 
 function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, existing = null, saving = false }) {
+  const { user } = useAuth();
+  const { settings } = useSettings(); // <--- 1. Get Settings
+  const isAdmin = user?.role === 'admin';
+
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerId, setCustomerId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -314,6 +300,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     }
   }, [isOpen, existing]);
 
+  // Update unit price when product selected
   useEffect(() => {
     const p = products.find(prod => String(prod.id) === String(selectedProductId));
     if (p) {
@@ -323,6 +310,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     }
   }, [selectedProductId, products]);
 
+  // Watch for price changes (Warning Logic)
   useEffect(() => {
     setPriceWarning(null);
     if (!selectedProductId || !lineUnitPrice) return;
@@ -335,6 +323,26 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
       }
     }
   }, [lineUnitPrice, selectedProductId, products]);
+
+  // --- 2. Enforce Price Change Permission ---
+  const handlePriceChange = (e) => {
+    const newVal = e.target.value;
+    
+    // Check if permission required
+    if (settings.requireAdminApproval && !isAdmin) {
+      const p = products.find(prod => String(prod.id) === String(selectedProductId));
+      const originalPrice = p ? p.selling_price : 0;
+      
+      // Allow if typing nothing (clearing) or typing the EXACT original price
+      if (newVal !== '' && Number(newVal) !== Number(originalPrice)) {
+         alert("Admin approval required to change price. Please ask a manager.");
+         // Reset to original
+         setLineUnitPrice(originalPrice); 
+         return;
+      }
+    }
+    setLineUnitPrice(newVal);
+  };
 
   function addLine() {
     if (!selectedProductId) return;
@@ -403,6 +411,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
           <h3>{existing ? 'Edit Bill' : 'New Bill'}</h3>
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
+        
         <div className="sales-modal-body">
           <div className="form-row">
             <div className="form-group" style={{flex: 0.5}}>
@@ -417,14 +426,23 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </select>
             </div>
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>Vehicle Plate # (Optional)</label>
               <div style={{position:'relative'}}>
-                <input type="text" className="clean-input" placeholder="e.g. ABC-1234" value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value.toUpperCase())} style={{paddingLeft: '2.2rem'}} />
+                <input 
+                  type="text" 
+                  className="clean-input" 
+                  placeholder="e.g. ABC-1234" 
+                  value={vehicleNumber} 
+                  onChange={e => setVehicleNumber(e.target.value.toUpperCase())} 
+                  style={{paddingLeft: '2.2rem'}}
+                />
                 <Truck size={16} style={{position:'absolute', left:'0.8rem', top:'50%', transform:'translateY(-50%)', color:'#9ca3af'}}/>
               </div>
             </div>
+
             <div className="form-group">
               <label>Payment Method</label>
               <select className="clean-input" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
@@ -435,7 +453,9 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </select>
             </div>
           </div>
+
           <hr style={{border:0, borderTop:'1px solid #f3f4f6', margin:'1.5rem 0'}}/>
+
           <div className="add-line-box">
             <div className="form-group" style={{ flex: 2 }}>
               <select className="clean-input" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
@@ -449,7 +469,19 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               <input type="number" className="clean-input" placeholder="Qty" value={lineQty} onChange={e => setLineQty(e.target.value)} />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <input type="number" className={`clean-input ${priceWarning ? 'warning-border' : ''}`} placeholder="Price" value={lineUnitPrice} onChange={e => setLineUnitPrice(e.target.value)} />
+              <div style={{position:'relative'}}>
+                 <input 
+                    type="number" 
+                    className={`clean-input ${priceWarning ? 'warning-border' : ''}`} 
+                    placeholder="Price" 
+                    value={lineUnitPrice} 
+                    onChange={handlePriceChange} // <--- Use custom handler
+                 />
+                 {/* Lock icon if editing is restricted */}
+                 {settings.requireAdminApproval && !isAdmin && (
+                    <Lock size={14} style={{position:'absolute', right: 10, top: 12, color:'#9ca3af'}} />
+                 )}
+              </div>
               {priceWarning && (
                 <div style={{color: '#f59e0b', fontSize: '0.75rem', marginTop: '4px', display:'flex', alignItems:'center', gap:'4px'}}>
                   <AlertTriangle size={12}/> {priceWarning}
@@ -458,6 +490,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
             </div>
             <button className="btn btn-primary" onClick={addLine}><Plus size={16}/> Add</button>
           </div>
+
           <div className="sales-table-wrapper" style={{ maxHeight: '250px', minHeight: '150px' }}>
             <table className="sales-table">
               <thead>
@@ -488,6 +521,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               </tbody>
             </table>
           </div>
+
           <div className="sales-footer-summary">
             <div style={{flex: 1, marginRight: '2rem'}}>
               <label>Notes</label>
@@ -498,8 +532,10 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
               <span className="amount">{fmtCurrency(subtotal)}</span>
             </div>
           </div>
+          
           {error && <div className="error-msg">{error}</div>}
         </div>
+
         <div className="sales-modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
@@ -515,6 +551,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
 
 export default function Sales() {
   const { user } = useAuth() || {};
+  const { settings } = useSettings(); // <--- 1. Get Settings
   const isAdmin = user?.role === 'admin';
   
   const [sales, setSales] = useState([]);
@@ -526,7 +563,7 @@ export default function Sales() {
   const [editingSale, setEditingSale] = useState(null);
   
   const [detailSale, setDetailSale] = useState(null);
-  const [returnSale, setReturnSale] = useState(null); // State for return modal
+  const [returnSale, setReturnSale] = useState(null); 
 
   useEffect(() => {
     loadData();
@@ -557,10 +594,8 @@ export default function Sales() {
     });
   }
 
-  // Handle updates from Return modal
   function handleReturnUpdate(updatedSale) {
     setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-    // Also update the detail view if it's open
     if (detailSale && detailSale.id === updatedSale.id) {
       setDetailSale(updatedSale);
     }
@@ -615,29 +650,46 @@ export default function Sales() {
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="7">Loading...</td></tr> : sales.map(s => (
-                <tr key={s.id} onClick={() => setDetailSale(s)} className="clickable-row">
-                  <td className="mono-font">#{String(s.sale_no || s.id).slice(-6)}</td>
-                  <td>{new Date(s.date).toLocaleDateString()}</td>
-                  <td>{s.customer_name || 'Walk-in'}</td>
-                  <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
-                  <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
-                  <td style={{fontWeight: 'bold'}}>{fmtCurrency(s.total_amount)}</td>
-                  <td style={{textAlign: 'right'}} onClick={e => e.stopPropagation()}>
-                    {isAdmin && (
-                      <>
-                        <button className="icon-btn" onClick={() => { setEditingSale(s); setModalOpen(true); }}>
-                          <Edit2 size={16}/>
-                        </button>
-                        <button className="icon-btn danger" onClick={() => deleteSale(s.id)}>
-                          <Trash2 size={16}/>
-                        </button>
-                      </>
-                    )}
-                    {!isAdmin && <button className="icon-btn"><FileText size={16}/></button>}
-                  </td>
-                </tr>
-              ))}
+              {loading ? <tr><td colSpan="7">Loading...</td></tr> : sales.map(s => {
+                // --- 3. Hide Bill Logic ---
+                // If bill exceeds threshold and user is NOT admin, hide it.
+                const total = Number(s.total_amount);
+                const isHidden = !isAdmin && settings.hideBillThreshold > 0 && total > settings.hideBillThreshold;
+
+                return (
+                  <tr key={s.id} onClick={() => !isHidden && setDetailSale(s)} className={isHidden ? "" : "clickable-row"} style={{opacity: isHidden ? 0.5 : 1}}>
+                    <td className="mono-font">#{String(s.sale_no || s.id).slice(-6)}</td>
+                    <td>{new Date(s.date).toLocaleDateString()}</td>
+                    <td>{isHidden ? '******' : (s.customer_name || 'Walk-in')}</td>
+                    <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
+                    <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
+                    
+                    <td style={{fontWeight: 'bold'}}>
+                      {isHidden ? <span style={{color:'#999', fontStyle:'italic'}}>Hidden</span> : fmtCurrency(s.total_amount)}
+                    </td>
+                    
+                    <td style={{textAlign: 'right'}} onClick={e => e.stopPropagation()}>
+                      {/* Hide actions if bill is hidden */}
+                      {!isHidden && (
+                        <>
+                          {isAdmin && (
+                            <>
+                              <button className="icon-btn" onClick={() => { setEditingSale(s); setModalOpen(true); }}>
+                                <Edit2 size={16}/>
+                              </button>
+                              <button className="icon-btn danger" onClick={() => deleteSale(s.id)}>
+                                <Trash2 size={16}/>
+                              </button>
+                            </>
+                          )}
+                          {!isAdmin && <button className="icon-btn" onClick={() => setDetailSale(s)}><FileText size={16}/></button>}
+                        </>
+                      )}
+                      {isHidden && <Lock size={16} color="#ccc" />}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -652,7 +704,6 @@ export default function Sales() {
         onSave={handleSave}
       />
 
-      {/* Sale Detail Modal now passes a handler to open Return Modal */}
       <SaleDetailModal 
         isOpen={!!detailSale} 
         onClose={() => setDetailSale(null)} 
@@ -660,7 +711,6 @@ export default function Sales() {
         onOpenReturn={(s) => setReturnSale(s)}
       />
 
-      {/* The New Return Modal */}
       <ReturnModal 
         isOpen={!!returnSale}
         onClose={() => setReturnSale(null)}

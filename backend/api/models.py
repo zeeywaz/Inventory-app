@@ -426,3 +426,34 @@ class AuditLog(models.Model):
     class Meta:
         db_table = 'audit_logs'
         ordering = ['-created_at']
+
+
+class SystemSetting(models.Model):
+    """
+    Singleton model to store global app configuration.
+    We enforce pk=1 in the save method to ensure only one record ever exists.
+    """
+    id = models.BigAutoField(primary_key=True)
+    # Security & Access
+    hide_bill_threshold = models.DecimalField(max_digits=12, decimal_places=2, default=2000.00)
+    require_admin_approval = models.BooleanField(default=True)
+    enable_audit_logging = models.BooleanField(default=True)
+    
+    # Staff Permissions
+    staff_can_edit_stock_only = models.BooleanField(default=True)
+    show_cost_to_staff = models.BooleanField(default=False)
+    
+    # System
+    auto_backup_enabled = models.BooleanField(default=False)
+    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1 # Force this to always be the first record
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "Global System Settings"
+
+    class Meta:
+        db_table = 'system_settings'

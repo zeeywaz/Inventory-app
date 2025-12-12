@@ -1,70 +1,67 @@
 // src/pages/settings.jsx
 import React, { useEffect, useState } from 'react';
 import '../styles/settings.css';
+import api from '../api'; 
 import { useAuth } from '../contexts/AuthContext';
-import { Save, RefreshCw, ShieldCheck, Key, Clock, EyeOff } from 'lucide-react';
-
-const STORAGE_KEY = 'app_settings_v1';
-
-const defaultSettings = {
-  hideBillThreshold: 2000,       // numeric currency (staff won't see bills above this)
-  requireAdminApproval: true,    // price override approval requirement
-  enableAuditLogging: true,
-  staffCanEditStockOnly: true,
-  showCostToStaff: false,
-  autoBackupEnabled: false,
-};
+import { useSettings } from '../contexts/SettingsContext'; // Import the new context
+import { Save, RefreshCw, ShieldCheck, Key, Clock, EyeOff, Loader } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin' || user?.is_superuser;
 
-  const [settings, setSettings] = useState(defaultSettings);
-  const [savedAt, setSavedAt] = useState(null);
+  // 1. Get settings from Global Context
+  const { settings: globalSettings, refreshSettings } = useSettings();
+
+  const [localSettings, setLocalSettings] = useState(globalSettings);
+  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
+  const [savedAt, setSavedAt] = useState(null);
 
+  // Sync local state when global settings finish loading
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setSettings((prev) => ({ ...prev, ...JSON.parse(raw) }));
-        setSavedAt(new Date().toLocaleString());
-      }
-    } catch (err) {
-      // ignore
-    }
-  }, []);
+    setLocalSettings(globalSettings);
+  }, [globalSettings]);
 
   function updateField(key, value) {
-    setSettings((s) => ({ ...s, [key]: value }));
+    setLocalSettings((s) => ({ ...s, [key]: value }));
     setStatus('');
   }
 
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     if (!isAdmin) {
       setStatus('Only admins can change global settings.');
       return;
     }
+    setSaving(true);
+
+    // 2. Map camelCase -> snake_case for Backend
+    const payload = {
+      hide_bill_threshold: localSettings.hideBillThreshold,
+      require_admin_approval: localSettings.requireAdminApproval,
+      enable_audit_logging: localSettings.enableAuditLogging,
+      staff_can_edit_stock_only: localSettings.staffCanEditStockOnly,
+      show_cost_to_staff: localSettings.showCostToStaff,
+      auto_backup_enabled: localSettings.autoBackupEnabled,
+    };
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      await api.patch('/system/settings/', payload);
+      await refreshSettings(); // 3. Refresh context to update the whole app immediately
       setSavedAt(new Date().toLocaleString());
-      setStatus('Settings saved.');
+      setStatus('Settings saved successfully.');
     } catch (err) {
-      setStatus('Failed to save settings.');
       console.error(err);
+      setStatus('Failed to save settings.');
+    } finally {
+      setSaving(false);
     }
   }
 
   function handleReset() {
-    if (!isAdmin) {
-      setStatus('Only admins can reset settings.');
-      return;
-    }
-    setSettings(defaultSettings);
-    localStorage.removeItem(STORAGE_KEY);
-    setSavedAt(null);
-    setStatus('Settings reset to defaults.');
+    setLocalSettings(globalSettings); // Revert to what is currently in context
+    setStatus('Reverted to last saved settings.');
   }
 
   return (
@@ -76,16 +73,17 @@ export default function SettingsPage() {
         </div>
 
         <div className="header-actions">
-          <button className="btn btn-ghost" onClick={handleReset} title="Reset to defaults">
-            <RefreshCw size={16} /> Reset
+          <button className="btn btn-ghost" onClick={handleReset} title="Discard unsaved changes">
+            <RefreshCw size={16} /> Revert
           </button>
-          <button className="btn btn-primary" onClick={handleSave} title="Save settings">
-            <Save size={16} /> Save
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !isAdmin} title="Save settings">
+            {saving ? <Loader size={16} className="spin" /> : <Save size={16} />} 
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
 
-      <form className="settings-grid" onSubmit={(e) => e.preventDefault()}>
+      <form className="settings-grid" onSubmit={handleSave}>
         {/* Security & Access */}
         <section className="card settings-card">
           <div className="card-head">
@@ -102,11 +100,11 @@ export default function SettingsPage() {
               <input
                 type="number"
                 min="0"
-                value={settings.hideBillThreshold}
+                value={localSettings.hideBillThreshold}
                 onChange={(e) => updateField('hideBillThreshold', Number(e.target.value))}
                 className="input"
                 placeholder="Amount (e.g. 2000)"
-                aria-label="Hide bill threshold"
+                disabled={!isAdmin}
               />
               <div className="field-help">Bills above this amount will be hidden from staff users.</div>
             </label>
@@ -120,7 +118,7 @@ export default function SettingsPage() {
                 <input
                   id="requireAdminApproval"
                   type="checkbox"
-                  checked={settings.requireAdminApproval}
+                  checked={localSettings.requireAdminApproval}
                   onChange={(e) => updateField('requireAdminApproval', e.target.checked)}
                   disabled={!isAdmin}
                 />
@@ -137,7 +135,7 @@ export default function SettingsPage() {
                 <input
                   id="enableAuditLogging"
                   type="checkbox"
-                  checked={settings.enableAuditLogging}
+                  checked={localSettings.enableAuditLogging}
                   onChange={(e) => updateField('enableAuditLogging', e.target.checked)}
                   disabled={!isAdmin}
                 />
@@ -167,7 +165,7 @@ export default function SettingsPage() {
                 <input
                   id="staffCanEditStockOnly"
                   type="checkbox"
-                  checked={settings.staffCanEditStockOnly}
+                  checked={localSettings.staffCanEditStockOnly}
                   onChange={(e) => updateField('staffCanEditStockOnly', e.target.checked)}
                   disabled={!isAdmin}
                 />
@@ -184,7 +182,7 @@ export default function SettingsPage() {
                 <input
                   id="showCostToStaff"
                   type="checkbox"
-                  checked={settings.showCostToStaff}
+                  checked={localSettings.showCostToStaff}
                   onChange={(e) => updateField('showCostToStaff', e.target.checked)}
                   disabled={!isAdmin}
                 />
@@ -208,13 +206,13 @@ export default function SettingsPage() {
             <label className="switch-row">
               <div>
                 <div className="field-label">Automatic backup</div>
-                <div className="field-help">Enable daily automatic backup to local storage (demo mode).</div>
+                <div className="field-help">Enable daily automatic backup.</div>
               </div>
               <div className="toggle">
                 <input
                   id="autoBackupEnabled"
                   type="checkbox"
-                  checked={settings.autoBackupEnabled}
+                  checked={localSettings.autoBackupEnabled}
                   onChange={(e) => updateField('autoBackupEnabled', e.target.checked)}
                   disabled={!isAdmin}
                 />
@@ -223,7 +221,7 @@ export default function SettingsPage() {
             </label>
 
             <div className="small-note">
-              <EyeOff size={14} /> <span>Remember: sensitive data should be handled securely (this demo stores settings in localStorage).</span>
+              <EyeOff size={14} /> <span>Settings are stored securely on the server and apply to all devices.</span>
             </div>
           </div>
         </section>
@@ -231,16 +229,16 @@ export default function SettingsPage() {
 
       <footer className="settings-footer">
         <div className="status">
-          <div className={`status-text ${status.includes('failed') ? 'error' : ''}`}>{status}</div>
-          <div className="saved-at">{savedAt ? `Saved: ${savedAt}` : 'Not saved'}</div>
+          <div className={`status-text ${status.includes('Failed') ? 'error' : 'success'}`}>{status}</div>
+          <div className="saved-at">{savedAt ? `Last saved: ${savedAt}` : ''}</div>
         </div>
 
         <div className="footer-actions">
-          <button className="btn btn-secondary" onClick={() => { setStatus(''); setSettings(JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify(defaultSettings))); }}>
-            Cancel
+          <button className="btn btn-secondary" onClick={handleReset}>
+            Revert
           </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={!isAdmin}>
-            Save changes
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !isAdmin}>
+            {saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
       </footer>

@@ -35,16 +35,19 @@ export function Sidebar({ user: propUser, onLogout }) {
 
   // 3. The actual Logout Logic
   const handleLogout = () => {
-    // Call the logout from AuthContext to clear tokens/state
-    logout();
-    
-    // If a parent component passed a custom handler, call it too
-    if (onLogout) {
-      onLogout();
+    // Confirmation Dialog
+    if (window.confirm("Are you sure you want to log out?")) {
+      // Call the logout from AuthContext to clear tokens/state
+      logout();
+      
+      // If a parent component passed a custom handler, call it too
+      if (onLogout) {
+        onLogout();
+      }
+      
+      // Redirect to login page immediately
+      navigate('/login');
     }
-    
-    // Redirect to login page immediately
-    navigate('/login');
   };
 
   // Helper to create a nav link

@@ -794,3 +794,59 @@ class EmployeeSerializer(serializers.ModelSerializer):
             import time
             validated_data['employee_code'] = f"EMP{int(time.time())}"
         return super().create(validated_data)
+    
+
+
+# api/serializers.py
+
+# ... existing imports ...
+from .models import SystemSetting 
+
+class SystemSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSetting
+        fields = '__all__'
+        read_only_fields = ('id', 'updated_at')
+
+# --- UPDATE YOUR EXISTING ProductSerializer ---
+# Replace your current ProductSerializer with this version 
+# so it hides the cost price if the setting is disabled for staff.
+
+class ProductSerializer(serializers.ModelSerializer):
+    # Example: show a bool if product is low/out of stock
+    is_out_of_stock = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = models.Product
+        fields = (
+            'id', 'sku', 'name', 'description', 'cost_price', 'selling_price',
+            'minimum_selling_price', 'quantity_in_stock',
+            'is_active', 'created_at', 'updated_at', 'is_out_of_stock', 'vehicle'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at', 'is_out_of_stock')
+
+    def get_is_out_of_stock(self, obj):
+        return (obj.quantity_in_stock or 0) <= 0
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # 1. Check if user is staff
+        is_staff = False
+        if request and hasattr(request, "user") and request.user.is_authenticated:
+            # Check based on your role logic
+            is_staff = getattr(request.user, 'role', '') == 'staff'
+
+        # 2. Fetch global setting (Get singleton)
+        try:
+            settings = SystemSetting.objects.get(pk=1)
+            show_cost = settings.show_cost_to_staff
+        except SystemSetting.DoesNotExist:
+            show_cost = False # Default to hidden if no settings found
+
+        # 3. If staff AND "show cost" is OFF, remove cost_price from output
+        if is_staff and not show_cost:
+            ret.pop('cost_price', None)
+            
+        return ret
