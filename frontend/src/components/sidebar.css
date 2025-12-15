@@ -263,3 +263,104 @@
     margin-right: 0;
   }
 }
+
+/* ... (Keep all your existing CSS above this) ... */
+
+/* --- Logout Modal Styles --- */
+.logout-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6); /* Dim background */
+  backdrop-filter: blur(4px); /* Nice blur effect */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999; /* Highest priority */
+  animation: fadeIn 0.2s ease-out;
+}
+
+.logout-modal {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 320px;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.logout-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  background-color: #fee2e2; /* Light Red */
+  color: #dc2626; /* Strong Red */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.logout-modal h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.logout-modal p {
+  margin: 0 0 24px 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.logout-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.logout-actions button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.btn-cancel:hover {
+  background-color: #e5e7eb;
+}
+
+.btn-confirm {
+  background-color: #dc2626; /* Red */
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.3);
+}
+
+.btn-confirm:hover {
+  background-color: #b91c1c; /* Darker Red */
+  transform: translateY(-1px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

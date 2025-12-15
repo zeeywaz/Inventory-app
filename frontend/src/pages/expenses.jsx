@@ -1,16 +1,14 @@
 // src/pages/expenses.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import '../styles/expenses.css';
-import { Plus, ReceiptText, X } from 'lucide-react';
+import { Plus, ReceiptText, X, Edit2, Trash2 } from 'lucide-react';
 import api from '../api';
 
 /**
  * AddExpenseModal
- * - Controlled inputs for: date, category, amount, paymentMethod, description, receiptFile
- * - validation and accessibility
- * - calls onSave(expenseObject) prop
+ * - Handles both Adding and Editing expenses based on expenseToEdit prop.
  */
-function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
+function AddExpenseModal({ isOpen, onClose, onSave, expenses = [], expenseToEdit = null }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -21,25 +19,40 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
   const [receiptFile, setReceiptFile] = useState(null);
   const [error, setError] = useState('');
 
-  // compute categories from existing expenses
+  // Compute categories from existing expenses
   const categories = useMemo(() => {
     const setCats = new Set((expenses || []).map((e) => e.category).filter(Boolean));
     return Array.from(setCats).sort();
   }, [expenses]);
 
+  // Reset or Populate form when modal opens
   useEffect(() => {
     if (isOpen) {
-      // reset on open
-      setDate(new Date().toISOString().slice(0, 10));
-      setCategory(categories[0] || '');
-      setAmount('');
-      setPaymentMethod('cash');
-      setDescription('');
-      setReceiptFile(null);
+      if (expenseToEdit) {
+        // --- EDIT MODE: Populate fields ---
+        // Handle date parsing safely
+        const dateStr = expenseToEdit.date 
+          ? (typeof expenseToEdit.date === 'string' ? expenseToEdit.date.slice(0, 10) : new Date(expenseToEdit.date).toISOString().slice(0, 10)) 
+          : new Date().toISOString().slice(0, 10);
+          
+        setDate(dateStr);
+        setCategory(expenseToEdit.category || '');
+        setAmount(expenseToEdit.amount || '');
+        setPaymentMethod(expenseToEdit.paid_by || 'cash');
+        setDescription(expenseToEdit.notes || '');
+        setReceiptFile(null); // File inputs cannot be pre-filled securely
+      } else {
+        // --- ADD MODE: Reset fields ---
+        setDate(new Date().toISOString().slice(0, 10));
+        setCategory(categories[0] || '');
+        setAmount('');
+        setPaymentMethod('cash');
+        setDescription('');
+        setReceiptFile(null);
+      }
       setIsAddingCategory(false);
       setNewCategory('');
       setError('');
-      // prevent background scroll
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -47,7 +60,7 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen, categories]);
+  }, [isOpen, expenseToEdit, categories]);
 
   if (!isOpen) return null;
 
@@ -69,24 +82,21 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
       return;
     }
 
-    // Build payload (backend ExpenseSerializer expects: category, amount, paid_by, notes, receipt_url)
     const payload = {
-      // date is read-only server-side -> server will set auto_now_add
+      // Note: Backend 'date' is likely read-only (auto_now_add), 
+      // but we pass it anyway in case the backend allows overrides.
+      // date: date, 
       category: chosenCategory,
       amount: Math.round(amt * 100) / 100,
       paid_by: paymentMethod,
       notes: description.trim() || null,
-      // the Expense model stores receipt_url as text; here we send filename.
-      // If you later implement file uploading, replace this with the file URL returned by the upload endpoint.
-      receipt_url: receiptFile ? receiptFile.name : null,
+      // Keep old receipt URL if editing and no new file selected
+      receipt_url: receiptFile ? receiptFile.name : (expenseToEdit ? expenseToEdit.receipt_url : null),
     };
 
-    // call parent callback
     if (typeof onSave === 'function') {
       onSave(payload, receiptFile);
     }
-
-    onClose();
   }
 
   return (
@@ -95,14 +105,14 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
         <div className="ex-modal-header">
           <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <ReceiptText size={18} />
-            Add Expense
+            {expenseToEdit ? 'Edit Expense' : 'Add Expense'}
           </h3>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               type="button"
               className="ex-modal-close"
               onClick={onClose}
-              aria-label="Close add expense"
+              aria-label="Close"
             >
               <X size={16} />
             </button>
@@ -119,9 +129,7 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
           >
             <div className="ex-row">
               <div className="ex-field">
-                <label className="ex-field-label" htmlFor="ex-date">
-                  Date
-                </label>
+                <label className="ex-field-label" htmlFor="ex-date">Date</label>
                 <input
                   id="ex-date"
                   type="date"
@@ -129,75 +137,60 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
                   onChange={(e) => setDate(e.target.value)}
                   className="ex-input"
                 />
-                <div className="small" style={{ color: '#6b7280', marginTop: 6 }}>
-                  (Server will use current date/time; this field is for your reference)
+                <div className="small" style={{ color: '#6b7280', marginTop: 6, fontSize: '0.75rem' }}>
+                  (Date is set automatically by server)
                 </div>
               </div>
 
               <div className="ex-field">
                 <label className="ex-field-label">Category</label>
                 {!isAddingCategory ? (
-                  <>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="ex-input"
-                        aria-label="Choose expense category"
-                      >
-                        <option value="">-- Choose category --</option>
-                        {categories.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="ex-btn ex-btn-secondary"
-                        onClick={() => {
-                          setIsAddingCategory(true);
-                          setTimeout(() => {
-                            const el = document.getElementById('ex-new-category');
-                            if (el) el.focus();
-                          }, 40);
-                        }}
-                      >
-                        + New
-                      </button>
-                    </div>
-                  </>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="ex-input"
+                    >
+                      <option value="">-- Choose --</option>
+                      {categories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="ex-btn ex-btn-secondary"
+                      onClick={() => {
+                        setIsAddingCategory(true);
+                        setTimeout(() => document.getElementById('ex-new-category')?.focus(), 40);
+                      }}
+                    >
+                      + New
+                    </button>
+                  </div>
                 ) : (
-                  <>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        id="ex-new-category"
-                        className="ex-input"
-                        placeholder="New category name"
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="ex-btn ex-btn-secondary"
-                        onClick={() => {
-                          setIsAddingCategory(false);
-                          setNewCategory('');
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      id="ex-new-category"
+                      className="ex-input"
+                      placeholder="New category name"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="ex-btn ex-btn-secondary"
+                      onClick={() => { setIsAddingCategory(false); setNewCategory(''); }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
 
             <div className="ex-row">
               <div className="ex-field">
-                <label className="ex-field-label" htmlFor="ex-amount">
-                  Amount
-                </label>
+                <label className="ex-field-label" htmlFor="ex-amount">Amount</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span className="ex-currency">₨ </span>
                   <input
@@ -215,9 +208,7 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
               </div>
 
               <div className="ex-field">
-                <label className="ex-field-label" htmlFor="ex-payment">
-                  Payment Method
-                </label>
+                <label className="ex-field-label" htmlFor="ex-payment">Payment Method</label>
                 <select
                   id="ex-payment"
                   value={paymentMethod}
@@ -233,14 +224,12 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
             </div>
 
             <div className="ex-field">
-              <label className="ex-field-label" htmlFor="ex-desc">
-                Description
-              </label>
+              <label className="ex-field-label" htmlFor="ex-desc">Description</label>
               <textarea
                 id="ex-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional details about this expense"
+                placeholder="Optional details"
                 className="ex-input ex-textarea"
               />
             </div>
@@ -268,7 +257,6 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
                   </div>
                 )}
               </div>
-
               <div style={{ flex: 1 }} />
             </div>
 
@@ -279,7 +267,7 @@ function AddExpenseModal({ isOpen, onClose, onSave, expenses = [] }) {
                 Cancel
               </button>
               <button type="submit" className="ex-btn ex-btn-primary">
-                Save Expense
+                {expenseToEdit ? 'Save Changes' : 'Save Expense'}
               </button>
             </div>
           </form>
@@ -296,6 +284,7 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null); // Track editing state
 
   // totals
   const today = new Date().toDateString();
@@ -311,7 +300,6 @@ export default function Expenses() {
 
   useEffect(() => {
     loadExpenses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadExpenses() {
@@ -328,45 +316,55 @@ export default function Expenses() {
     }
   }
 
-  function handleOpen() {
+  // --- Handlers ---
+
+  function handleOpenAdd() {
+    setEditingExpense(null);
     setIsModalOpen(true);
   }
-  function handleClose() {
-    setIsModalOpen(false);
+
+  function handleOpenEdit(ex) {
+    setEditingExpense(ex);
+    setIsModalOpen(true);
   }
 
-  /**
-   * onSave handler passed to AddExpenseModal
-   * payload: { category, amount, paid_by, notes, receipt_url }
-   * receiptFile: optional File object (not uploaded here)
-   */
+  function handleClose() {
+    setIsModalOpen(false);
+    setEditingExpense(null);
+  }
+
+  // DELETE Action
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this expense?")) return;
+    try {
+      await api.delete(`/expenses/${id}/`);
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      console.error("Delete failed", err);
+      alert("Failed to delete expense: " + (err?.response?.data?.detail || err.message));
+    }
+  }
+
+  // SAVE Action (Create or Update)
   async function handleSaveExpense(payload, receiptFile) {
     try {
-      // If you later implement a file upload endpoint, upload receiptFile first,
-      // then replace payload.receipt_url with the returned URL.
-      const resp = await api.post('/expenses/', payload);
-      const created = resp.data;
-      setExpenses((prev) => (Array.isArray(prev) ? [created, ...prev] : [created]));
-      alert('Expense saved.');
+      if (editingExpense) {
+        // --- EDIT EXISTING (PATCH) ---
+        const resp = await api.patch(`/expenses/${editingExpense.id}/`, payload);
+        const updated = resp.data;
+        setExpenses((prev) => prev.map(ex => (ex.id === updated.id ? updated : ex)));
+        alert('Expense updated successfully.');
+      } else {
+        // --- CREATE NEW (POST) ---
+        const resp = await api.post('/expenses/', payload);
+        const created = resp.data;
+        setExpenses((prev) => (Array.isArray(prev) ? [created, ...prev] : [created]));
+        alert('Expense saved successfully.');
+      }
+      handleClose();
     } catch (err) {
       console.error('Save expense failed', err);
-      // Best-effort fallback: keep locally so user doesn't lose entry
-      try {
-        const fallback = {
-          id: `ex-local-${Date.now()}`,
-          category: payload.category,
-          amount: payload.amount,
-          paid_by: payload.paid_by,
-          notes: payload.notes,
-          receipt_url: payload.receipt_url,
-          created_at: new Date().toISOString(),
-          date: new Date().toISOString(),
-        };
-        setExpenses((prev) => [fallback, ...(prev || [])]);
-        alert('Expense saved locally (server failed).');
-      } catch (e) {
-        alert('Failed to save expense: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
-      }
+      alert('Failed to save expense: ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
     }
   }
 
@@ -375,20 +373,26 @@ export default function Expenses() {
 
   return (
     <div className="ex-page">
-      <AddExpenseModal isOpen={isModalOpen} onClose={handleClose} onSave={handleSaveExpense} expenses={expenses} />
+      <AddExpenseModal 
+        isOpen={isModalOpen} 
+        onClose={handleClose} 
+        onSave={handleSaveExpense} 
+        expenses={expenses}
+        expenseToEdit={editingExpense} // Pass to modal
+      />
 
       <div className="ex-header">
         <div>
           <h2>Expense Management</h2>
           <p className="ex-sub">Track and categorize business expenses</p>
         </div>
-        <button className="ex-btn ex-btn-primary" onClick={handleOpen} aria-label="Add expense">
+        <button className="ex-btn ex-btn-primary" onClick={handleOpenAdd} aria-label="Add expense">
           <Plus size={16} /> Add Expense
         </button>
       </div>
 
       <div className="ex-stats-row" role="region" aria-label="Expense stats">
-        <div className="card ex-stat-card" style={{ ['--card-color']: 'var(--ex-red)' }}>
+        <div className="card ex-stat-card" style={{ '--card-color': 'var(--ex-red)' }}>
           <div>
             <div className="stat-title">Today's Expenses</div>
             <div className="stat-value">{fmt(todayTotal)}</div>
@@ -396,7 +400,7 @@ export default function Expenses() {
           </div>
         </div>
 
-        <div className="card ex-stat-card" style={{ ['--card-color']: 'var(--ex-blue)' }}>
+        <div className="card ex-stat-card" style={{ '--card-color': 'var(--ex-blue)' }}>
           <div>
             <div className="stat-title">Total Expenses</div>
             <div className="stat-value">{fmt(totalExpenses)}</div>
@@ -404,7 +408,7 @@ export default function Expenses() {
           </div>
         </div>
 
-        <div className="card ex-stat-card" style={{ ['--card-color']: 'var(--ex-orange)' }}>
+        <div className="card ex-stat-card" style={{ '--card-color': 'var(--ex-orange)' }}>
           <div>
             <div className="stat-title">Categories</div>
             <div className="stat-value">{new Set((expenses || []).map((e) => e.category).filter(Boolean)).size}</div>
@@ -426,7 +430,7 @@ export default function Expenses() {
             <div className="ex-empty">
               <ReceiptText size={48} className="ex-empty-icon" />
               <p>No expenses recorded yet</p>
-              <button className="ex-btn ex-btn-primary" onClick={handleOpen}>
+              <button className="ex-btn ex-btn-primary" onClick={handleOpenAdd}>
                 <Plus size={16} /> Record Your First Expense
               </button>
             </div>
@@ -439,6 +443,8 @@ export default function Expenses() {
                     <th>Category</th>
                     <th>Description</th>
                     <th style={{ textAlign: 'right' }}>Amount</th>
+                    {/* --- ADDED Actions Header --- */}
+                    <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -446,8 +452,30 @@ export default function Expenses() {
                     <tr key={ex.id || ex.created_at}>
                       <td>{ex.date ? new Date(ex.date).toLocaleDateString() : (ex.created_at ? new Date(ex.created_at).toLocaleDateString() : '—')}</td>
                       <td>{ex.category}</td>
-                      <td style={{ maxWidth: 480 }}>{ex.notes || ex.description || '-'}</td>
+                      <td style={{ maxWidth: 400 }}>{ex.notes || ex.description || '-'}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(Number(ex.amount) || 0)}</td>
+                      
+                      {/* --- ADDED Actions Cell --- */}
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleOpenEdit(ex)}
+                            className="icon-btn"
+                            title="Edit"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(ex.id)}
+                            className="icon-btn danger"
+                            title="Delete"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

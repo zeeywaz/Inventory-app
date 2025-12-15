@@ -386,7 +386,7 @@ export default function CustomersPage() {
       <div className="cu-stats-row">
         <StatCard title="Total Customers" value={stats.total} colorClass="c-blue" />
         <StatCard title="Customers with Credit" value={stats.withCredit} colorClass="c-orange" />
-        <StatCard title="Total Credited" value={`Rs ${stats.totalCredited.toFixed(2)}`} colorClass="c-red" />
+        {isAdmin && <StatCard title="Total Credited" value={`Rs ${stats.totalCredited.toFixed(2)}`} colorClass="c-red" />}
       </div>
 
       <div className="cu-search-row">

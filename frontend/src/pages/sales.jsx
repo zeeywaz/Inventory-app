@@ -3,8 +3,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import '../styles/sales.css';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { useSettings } from '../contexts/SettingsContext'; // <--- Import Settings
-import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck, AlertTriangle, RotateCcw, Lock } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext'; 
+import { Plus, ShoppingCart, X, Trash2, Edit2, FileText, Truck, AlertTriangle, RotateCcw, Lock, UserPlus, UserCog } from 'lucide-react';
 
 // --- Helper Components ---
 
@@ -22,7 +22,121 @@ function StatCard({ title, value, subValue, color }) {
 
 const fmtCurrency = (v) => `₨ ${Number(v || 0).toFixed(2)}`;
 
-// --- Return Products Modal (Unchanged) ---
+// --- Quick Customer Add/Edit Modal (Updated) ---
+function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null }) {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '' });
+  const [saving, setSaving] = useState(false);
+
+  // Reset or Populate form
+  useEffect(() => {
+    if (isOpen) {
+      if (customerToEdit) {
+        setForm({
+          name: customerToEdit.name || '',
+          phone: customerToEdit.phone || '',
+          email: customerToEdit.email || '',
+          address: customerToEdit.address || '',
+        });
+      } else {
+        setForm({ name: '', phone: '', email: '', address: '' });
+      }
+    }
+  }, [isOpen, customerToEdit]);
+
+  if (!isOpen) return null;
+
+  async function handleSave() {
+    if (!form.name || !form.phone) return alert("Name and Phone are required.");
+    setSaving(true);
+    try {
+      let res;
+      if (customerToEdit) {
+        // EDIT Existing Customer
+        res = await api.patch(`/customers/${customerToEdit.id}/`, form);
+      } else {
+        // CREATE New Customer
+        res = await api.post('/customers/', form);
+      }
+      onSuccess(res.data);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save customer: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    // FIX: High Z-Index to appear ABOVE the Bill Modal
+    <div className="sales-modal-overlay" onClick={onClose} style={{ zIndex: 10000, position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
+      <div className="sales-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+        <div className="sales-modal-header">
+          <h3>{customerToEdit ? 'Edit Customer' : 'Add New Customer'}</h3>
+          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+        </div>
+        
+        <div className="sales-modal-body">
+          {/* Row 1: Name & Phone */}
+          <div className="form-row">
+            <div className="form-group" style={{flex: 1}}>
+              <label>Name <span style={{color:'red'}}>*</span></label>
+              <input 
+                className="clean-input" 
+                autoFocus 
+                value={form.name} 
+                onChange={e => setForm({...form, name: e.target.value})} 
+                placeholder="Customer Name" 
+              />
+            </div>
+            <div className="form-group" style={{flex: 1}}>
+              <label>Phone <span style={{color:'red'}}>*</span></label>
+              <input 
+                className="clean-input" 
+                value={form.phone} 
+                onChange={e => setForm({...form, phone: e.target.value})} 
+                placeholder="077..." 
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Email */}
+          <div className="form-group" style={{marginTop: 12}}>
+            <label>Email</label>
+            <input 
+              className="clean-input" 
+              value={form.email} 
+              onChange={e => setForm({...form, email: e.target.value})} 
+              placeholder="optional@email.com" 
+            />
+          </div>
+
+          {/* Row 3: Address (Full Width) */}
+          <div className="form-group" style={{marginTop: 12}}>
+            <label>Address</label>
+            <input 
+              className="clean-input" 
+              value={form.address} 
+              onChange={e => setForm({...form, address: e.target.value})} 
+              placeholder="House No, Street, City" 
+            />
+          </div>
+        </div>
+        
+        <div className="sales-modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : (customerToEdit ? 'Update Customer' : 'Create Customer')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ... (Rest of the file: ReturnModal, SaleDetailModal, NewBillModal, Sales component remain unchanged from previous step)
+// Ensure you include the full file content if you are copy-pasting the entire file.
+
 function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   const [returnMap, setReturnMap] = useState({}); 
   const [saving, setSaving] = useState(false);
@@ -40,7 +154,6 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
     let num = parseInt(val) || 0;
     if (num < 0) num = 0;
     if (num > maxQty) num = maxQty;
-    
     setReturnMap(prev => ({ ...prev, [lineId]: num }));
   };
 
@@ -93,7 +206,7 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   };
 
   return (
-    <div className="sales-modal-overlay" onClick={onClose}>
+    <div className="sales-modal-overlay" onClick={onClose} style={{ zIndex: 10000 }}>
       <div className="sales-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px' }}>
         <div className="sales-modal-header">
           <h3>Return Products</h3>
@@ -160,13 +273,12 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   );
 }
 
-// --- Sale Detail Modal ---
 function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   if (!isOpen || !sale) return null;
   const get = (k) => sale[k] ?? sale[k === 'totalAmount' ? 'total_amount' : k];
 
   return (
-    <div className="sales-modal-overlay" onClick={onClose}>
+    <div className="sales-modal-overlay" onClick={onClose} style={{ zIndex: 9000 }}>
       <div className="sales-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sales-modal-header">
           <h3>Sale #{String(get('id') ?? '').slice(-6)}</h3>
@@ -247,11 +359,9 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   );
 }
 
-// --- Create/Edit Modal ---
-
-function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, existing = null, saving = false }) {
+function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, onAddCustomer, onUpdateCustomer, existing = null, saving = false }) {
   const { user } = useAuth();
-  const { settings } = useSettings(); // <--- 1. Get Settings
+  const { settings } = useSettings(); 
   const isAdmin = user?.role === 'admin';
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -267,6 +377,10 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
 
   const [lines, setLines] = useState([]);
   const [error, setError] = useState('');
+  
+  // Customer Modal States
+  const [isCustomerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -300,6 +414,13 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     }
   }, [isOpen, existing]);
 
+  // --- Walk-in Logic (No Credit) ---
+  useEffect(() => {
+    if (!customerId && paymentMethod === 'credit') {
+        setPaymentMethod('cash');
+    }
+  }, [customerId, paymentMethod]);
+
   // Update unit price when product selected
   useEffect(() => {
     const p = products.find(prod => String(prod.id) === String(selectedProductId));
@@ -324,7 +445,6 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     }
   }, [lineUnitPrice, selectedProductId, products]);
 
-  // --- 2. Enforce Price Change Permission ---
   const handlePriceChange = (e) => {
     const newVal = e.target.value;
     
@@ -333,10 +453,8 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
       const p = products.find(prod => String(prod.id) === String(selectedProductId));
       const originalPrice = p ? p.selling_price : 0;
       
-      // Allow if typing nothing (clearing) or typing the EXACT original price
       if (newVal !== '' && Number(newVal) !== Number(originalPrice)) {
          alert("Admin approval required to change price. Please ask a manager.");
-         // Reset to original
          setLineUnitPrice(originalPrice); 
          return;
       }
@@ -364,6 +482,33 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
   function removeLine(uniqueId) {
     setLines(lines.filter(l => l.uniqueId !== uniqueId));
   }
+
+  // --- Customer Modal Handlers ---
+  
+  const handleOpenAddCustomer = () => {
+    setCustomerToEdit(null);
+    setCustomerModalOpen(true);
+  };
+
+  const handleOpenEditCustomer = () => {
+    if (!customerId) return;
+    const cust = customers.find(c => String(c.id) === String(customerId));
+    if (cust) {
+      setCustomerToEdit(cust);
+      setCustomerModalOpen(true);
+    }
+  };
+
+  const handleCustomerSuccess = (customer) => {
+    if (customerToEdit) {
+      // It was an edit
+      onUpdateCustomer(customer);
+    } else {
+      // It was a new creation
+      onAddCustomer(customer);
+      setCustomerId(customer.id); // Auto-select new customer
+    }
+  };
 
   const subtotal = lines.reduce((acc, l) => acc + (l.quantity * l.unitPrice), 0);
 
@@ -405,145 +550,172 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
   if (!isOpen) return null;
 
   return (
-    <div className="sales-modal-overlay">
-      <div className="sales-modal" style={{ maxWidth: '850px' }}>
-        <div className="sales-modal-header">
-          <h3>{existing ? 'Edit Bill' : 'New Bill'}</h3>
-          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
-        </div>
-        
-        <div className="sales-modal-body">
-          <div className="form-row">
-            <div className="form-group" style={{flex: 0.5}}>
-              <label>Date</label>
-              <input type="date" className="clean-input" value={date} onChange={e => setDate(e.target.value)} />
+    <>
+      {/* Bill Modal */}
+      <div className="sales-modal-overlay" style={{zIndex: 9000}}>
+        <div className="sales-modal" style={{ maxWidth: '850px' }}>
+            <div className="sales-modal-header">
+            <h3>{existing ? 'Edit Bill' : 'New Bill'}</h3>
+            <button className="icon-btn" onClick={onClose}><X size={20} /></button>
             </div>
-            <div className="form-group" style={{flex: 1.5}}>
-              <label>Customer</label>
-              <select className="clean-input" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-                <option value="">Walk-in Customer</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Vehicle Plate # (Optional)</label>
-              <div style={{position:'relative'}}>
-                <input 
-                  type="text" 
-                  className="clean-input" 
-                  placeholder="e.g. ABC-1234" 
-                  value={vehicleNumber} 
-                  onChange={e => setVehicleNumber(e.target.value.toUpperCase())} 
-                  style={{paddingLeft: '2.2rem'}}
-                />
-                <Truck size={16} style={{position:'absolute', left:'0.8rem', top:'50%', transform:'translateY(-50%)', color:'#9ca3af'}}/>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Payment Method</label>
-              <select className="clean-input" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="transfer">Bank Transfer</option>
-                <option value="credit">Credit / Later</option>
-              </select>
-            </div>
-          </div>
-
-          <hr style={{border:0, borderTop:'1px solid #f3f4f6', margin:'1.5rem 0'}}/>
-
-          <div className="add-line-box">
-            <div className="form-group" style={{ flex: 2 }}>
-              <select className="clean-input" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
-                <option value="">Select Product...</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''} (Stk: {p.quantity_in_stock})</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group" style={{ flex: 0.5 }}>
-              <input type="number" className="clean-input" placeholder="Qty" value={lineQty} onChange={e => setLineQty(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <div style={{position:'relative'}}>
-                 <input 
-                    type="number" 
-                    className={`clean-input ${priceWarning ? 'warning-border' : ''}`} 
-                    placeholder="Price" 
-                    value={lineUnitPrice} 
-                    onChange={handlePriceChange} // <--- Use custom handler
-                 />
-                 {/* Lock icon if editing is restricted */}
-                 {settings.requireAdminApproval && !isAdmin && (
-                    <Lock size={14} style={{position:'absolute', right: 10, top: 12, color:'#9ca3af'}} />
-                 )}
-              </div>
-              {priceWarning && (
-                <div style={{color: '#f59e0b', fontSize: '0.75rem', marginTop: '4px', display:'flex', alignItems:'center', gap:'4px'}}>
-                  <AlertTriangle size={12}/> {priceWarning}
+            
+            <div className="sales-modal-body">
+            <div className="form-row">
+                <div className="form-group" style={{flex: 0.5}}>
+                <label>Date</label>
+                <input type="date" className="clean-input" value={date} onChange={e => setDate(e.target.value)} />
                 </div>
-              )}
-            </div>
-            <button className="btn btn-primary" onClick={addLine}><Plus size={16}/> Add</button>
-          </div>
+                <div className="form-group" style={{flex: 1.5}}>
+                <label>Customer</label>
+                <div style={{display:'flex', gap: 8}}>
+                    <select className="clean-input" style={{flex:1}} value={customerId} onChange={e => setCustomerId(e.target.value)}>
+                        <option value="">Walk-in Customer</option>
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    
+                    {/* Add Customer Button */}
+                    <button className="btn btn-secondary" onClick={handleOpenAddCustomer} title="Add New Customer">
+                        <UserPlus size={16} />
+                    </button>
 
-          <div className="sales-table-wrapper" style={{ maxHeight: '250px', minHeight: '150px' }}>
-            <table className="sales-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Total</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.length === 0 ? (
-                  <tr><td colSpan="5" style={{textAlign:'center', color:'#999', padding:'2rem'}}>No items added yet.</td></tr>
-                ) : (
-                  lines.map(l => (
-                    <tr key={l.uniqueId}>
-                      <td>{l.productName}</td>
-                      <td>{l.quantity}</td>
-                      <td>{fmtCurrency(l.unitPrice)}</td>
-                      <td>{fmtCurrency(l.quantity * l.unitPrice)}</td>
-                      <td>
-                        <button className="icon-btn danger" onClick={() => removeLine(l.uniqueId)}><Trash2 size={16}/></button>
-                      </td>
-                    </tr>
-                  ))
+                    {/* Edit Customer Button (Only if customer selected) */}
+                    {customerId && (
+                      <button className="btn btn-secondary" onClick={handleOpenEditCustomer} title="Edit Selected Customer">
+                          <UserCog size={16} />
+                      </button>
+                    )}
+                </div>
+                </div>
+            </div>
+
+            <div className="form-row">
+                <div className="form-group">
+                <label>Vehicle Plate # (Optional)</label>
+                <div style={{position:'relative'}}>
+                    <input 
+                    type="text" 
+                    className="clean-input" 
+                    placeholder="e.g. ABC-1234" 
+                    value={vehicleNumber} 
+                    onChange={e => setVehicleNumber(e.target.value.toUpperCase())} 
+                    style={{paddingLeft: '2.2rem'}}
+                    />
+                    <Truck size={16} style={{position:'absolute', left:'0.8rem', top:'50%', transform:'translateY(-50%)', color:'#9ca3af'}}/>
+                </div>
+                </div>
+
+                <div className="form-group">
+                <label>Payment Method</label>
+                <select className="clean-input" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="transfer">Bank Transfer</option>
+                    {/* Disable Credit if no customer selected */}
+                    <option value="credit" disabled={!customerId}>
+                        Credit / Later {!customerId ? '(Reg. Only)' : ''}
+                    </option>
+                </select>
+                </div>
+            </div>
+
+            <hr style={{border:0, borderTop:'1px solid #f3f4f6', margin:'1.5rem 0'}}/>
+
+            <div className="add-line-box">
+                <div className="form-group" style={{ flex: 2 }}>
+                <select className="clean-input" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
+                    <option value="">Select Product...</option>
+                    {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''} (Stk: {p.quantity_in_stock})</option>
+                    ))}
+                </select>
+                </div>
+                <div className="form-group" style={{ flex: 0.5 }}>
+                <input type="number" className="clean-input" placeholder="Qty" value={lineQty} onChange={e => setLineQty(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                <div style={{position:'relative'}}>
+                    <input 
+                        type="number" 
+                        className={`clean-input ${priceWarning ? 'warning-border' : ''}`} 
+                        placeholder="Price" 
+                        value={lineUnitPrice} 
+                        onChange={handlePriceChange} 
+                    />
+                    {settings.requireAdminApproval && !isAdmin && (
+                        <Lock size={14} style={{position:'absolute', right: 10, top: 12, color:'#9ca3af'}} />
+                    )}
+                </div>
+                {priceWarning && (
+                    <div style={{color: '#f59e0b', fontSize: '0.75rem', marginTop: '4px', display:'flex', alignItems:'center', gap:'4px'}}>
+                    <AlertTriangle size={12}/> {priceWarning}
+                    </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="sales-footer-summary">
-            <div style={{flex: 1, marginRight: '2rem'}}>
-              <label>Notes</label>
-              <input className="clean-input" style={{width: '100%'}} placeholder="Optional notes..." value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" onClick={addLine}><Plus size={16}/> Add</button>
             </div>
-            <div className="total-display">
-              <span>Grand Total</span>
-              <span className="amount">{fmtCurrency(subtotal)}</span>
-            </div>
-          </div>
-          
-          {error && <div className="error-msg">{error}</div>}
-        </div>
 
-        <div className="sales-modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Bill'}
-          </button>
+            <div className="sales-table-wrapper" style={{ maxHeight: '250px', minHeight: '150px' }}>
+                <table className="sales-table">
+                <thead>
+                    <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                    <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {lines.length === 0 ? (
+                    <tr><td colSpan="5" style={{textAlign:'center', color:'#999', padding:'2rem'}}>No items added yet.</td></tr>
+                    ) : (
+                    lines.map(l => (
+                        <tr key={l.uniqueId}>
+                        <td>{l.productName}</td>
+                        <td>{l.quantity}</td>
+                        <td>{fmtCurrency(l.unitPrice)}</td>
+                        <td>{fmtCurrency(l.quantity * l.unitPrice)}</td>
+                        <td>
+                            <button className="icon-btn danger" onClick={() => removeLine(l.uniqueId)}><Trash2 size={16}/></button>
+                        </td>
+                        </tr>
+                    ))
+                    )}
+                </tbody>
+                </table>
+            </div>
+
+            <div className="sales-footer-summary">
+                <div style={{flex: 1, marginRight: '2rem'}}>
+                <label>Notes</label>
+                <input className="clean-input" style={{width: '100%'}} placeholder="Optional notes..." value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+                <div className="total-display">
+                <span>Grand Total</span>
+                <span className="amount">{fmtCurrency(subtotal)}</span>
+                </div>
+            </div>
+            
+            {error && <div className="error-msg">{error}</div>}
+            </div>
+
+            <div className="sales-modal-footer">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Bill'}
+            </button>
+            </div>
         </div>
       </div>
-    </div>
+
+      {/* Nested Modal for Quick Add/Edit Customer */}
+      <QuickCustomerModal 
+          isOpen={isCustomerModalOpen} 
+          onClose={() => setCustomerModalOpen(false)}
+          onSuccess={handleCustomerSuccess}
+          customerToEdit={customerToEdit}
+      />
+    </>
   );
 }
 
@@ -551,7 +723,7 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
 
 export default function Sales() {
   const { user } = useAuth() || {};
-  const { settings } = useSettings(); // <--- 1. Get Settings
+  const { settings } = useSettings(); 
   const isAdmin = user?.role === 'admin';
   
   const [sales, setSales] = useState([]);
@@ -592,6 +764,15 @@ export default function Sales() {
       if (exists) return prev.map(s => s.id === savedSale.id ? savedSale : s);
       return [savedSale, ...prev];
     });
+  }
+
+  // --- Handlers for Customer Updates ---
+  function handleCustomerAdd(newCustomer) {
+    setCustomers(prev => [newCustomer, ...prev]);
+  }
+
+  function handleCustomerUpdate(updatedCustomer) {
+    setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
   }
 
   function handleReturnUpdate(updatedSale) {
@@ -651,8 +832,6 @@ export default function Sales() {
             </thead>
             <tbody>
               {loading ? <tr><td colSpan="7">Loading...</td></tr> : sales.map(s => {
-                // --- 3. Hide Bill Logic ---
-                // If bill exceeds threshold and user is NOT admin, hide it.
                 const total = Number(s.total_amount);
                 const isHidden = !isAdmin && settings.hideBillThreshold > 0 && total > settings.hideBillThreshold;
 
@@ -663,13 +842,10 @@ export default function Sales() {
                     <td>{isHidden ? '******' : (s.customer_name || 'Walk-in')}</td>
                     <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
                     <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
-                    
                     <td style={{fontWeight: 'bold'}}>
                       {isHidden ? <span style={{color:'#999', fontStyle:'italic'}}>Hidden</span> : fmtCurrency(s.total_amount)}
                     </td>
-                    
                     <td style={{textAlign: 'right'}} onClick={e => e.stopPropagation()}>
-                      {/* Hide actions if bill is hidden */}
                       {!isHidden && (
                         <>
                           {isAdmin && (
@@ -702,6 +878,8 @@ export default function Sales() {
         products={products}
         customers={customers}
         onSave={handleSave}
+        onAddCustomer={handleCustomerAdd} 
+        onUpdateCustomer={handleCustomerUpdate} // Pass update handler
       />
 
       <SaleDetailModal 

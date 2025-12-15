@@ -444,7 +444,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = models.Customer.objects.all().order_by('-created_at')
     serializer_class = getattr(__import__('api.serializers', fromlist=['CustomerSerializer']), 'CustomerSerializer'
                                 )
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsAdminOrStockEditor]
 
     # enable search on name/phone/email
     filter_backends = [filters.SearchFilter]

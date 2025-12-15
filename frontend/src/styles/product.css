@@ -202,8 +202,31 @@
 /* highlight min price — solid */
 .pi-min-price { color:var(--pi-orange); font-weight:800; }
 
-/* actions column */
-.pi-actions-col { text-align:right; width:170px; }
+/* -------------------------------------------------
+   FIX: ACTIONS COLUMN ALIGNMENT 
+   -------------------------------------------------
+*/
+.pi-table thead th:last-child {
+  text-align: right; /* Align header "Actions" to right */
+  padding-right: 24px;
+}
+
+.pi-actions-col { 
+  text-align: right; 
+  white-space: nowrap; /* Prevent buttons wrapping */
+  width: 140px; /* Give it enough space */
+  padding-right: 24px !important; /* Force padding */
+}
+
+/* Flex container for the buttons inside the cell */
+.pi-actions-col > div, /* If wrapped in a fragment */
+.pi-actions-col {
+  display: flex;
+  justify-content: flex-end; /* Align buttons to the right */
+  gap: 8px; /* Space between buttons */
+  align-items: center;
+}
+
 .icon-btn { background:transparent; border:none; padding:8px; display:inline-grid; place-items:center; cursor:pointer; border-radius:8px; color:var(--pi-muted); transition: background var(--pi-transition), color var(--pi-transition); }
 .icon-btn:hover { background:#f8fafc; color:var(--pi-text); }
 .icon-btn.danger { color:var(--pi-red); }
@@ -246,7 +269,7 @@
   .pi-table thead { display:none; }
   .pi-table tbody td { display:block; width:100%; padding:12px; border-bottom: none; }
   .pi-table tbody tr { margin-bottom:12px; display:block; border-radius:12px; background:var(--pi-card); border:1px solid var(--pi-border); padding:12px; box-shadow: var(--pi-shadow-1); }
-  .pi-actions-col { text-align:left; width:auto; margin-top:8px; }
+  .pi-actions-col { text-align:left; width:auto; margin-top:8px; display: flex; justify-content: flex-start; } /* Reset for mobile */
 }
 
 /* small utilities */
