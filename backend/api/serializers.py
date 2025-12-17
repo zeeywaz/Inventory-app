@@ -6,7 +6,7 @@ from django.db import transaction
 User = get_user_model()
 import logging
 logger = logging.getLogger(__name__)
-
+from django.db.models import F
 #
 # Basic serializers
 #
@@ -135,30 +135,45 @@ class SaleLineSerializer(serializers.ModelSerializer):
 class SaleSerializer(serializers.ModelSerializer):
     lines = SaleLineSerializer(many=True)
     created_by = UserSerializer(read_only=True)
+    
+    # --- ADD THIS LINE ---
+    customer_name = serializers.CharField(source='customer.name', read_only=True) 
 
     class Meta:
         model = models.Sale
-        fields = ('id', 'sale_no', 'date', 'customer', 'employee', 'subtotal', 'tax', 'discount',
-                  'total_amount', 'payment_method', 'is_credit', 'created_by', 'created_at', 'lines', 'vehicle_number')
+        fields = (
+            'id', 'sale_no', 'date', 'customer', 
+            'customer_name', # <--- Add this to fields
+            'employee', 'subtotal', 'tax', 'discount',
+            'total_amount', 'payment_method', 'is_credit', 
+            'created_by', 'created_at', 'lines', 'vehicle_number'
+        )
         read_only_fields = ('id', 'date', 'created_at', 'created_by')
-
     # --- DELETE THE validate METHOD THAT WAS HERE ---
     # We removed it to allow empty lines (Full Returns)
 
     def create(self, validated_data):
-        # ... (Keep your existing create logic exactly as is) ...
         lines_data = validated_data.pop('lines', [])
         request = self.context.get('request')
         created_by = getattr(request, 'user', None)
 
+        # --- FIX START: Auto-detect Credit ---
+        # If payment_method is 'credit', force is_credit to True
+        if validated_data.get('payment_method') == 'credit':
+            validated_data['is_credit'] = True
+        # --- FIX END ---
+
+        # 1. Create the Sale
         sale = models.Sale.objects.create(created_by=created_by, **validated_data)
 
         subtotal = 0
+        # 2. Process Lines
         for line in lines_data:
             qty = line.get('quantity', 0)
             unit = line.get('unit_price', 0)
             product = line.get('product')
             product_name = line.get('product_name') or (product.name if product else '')
+            
             line_total = float(qty) * float(unit)
             subtotal += line_total
 
@@ -173,13 +188,19 @@ class SaleSerializer(serializers.ModelSerializer):
                 line_total=line_total
             )
 
-            # Deduct stock
             if product:
                 models.Product.objects.filter(pk=product.pk).update(quantity_in_stock=F('quantity_in_stock') - qty)
 
+        # 3. Update Sale Totals
         sale.subtotal = subtotal
         sale.total_amount = validated_data.get('total_amount', subtotal)
         sale.save(update_fields=['subtotal', 'total_amount'])
+
+        # 4. Update Customer Debt (The logic I gave you before)
+        if sale.is_credit and sale.customer:
+            sale.customer.credited_amount = F('credited_amount') + sale.total_amount
+            sale.customer.save(update_fields=['credited_amount'])
+
         return sale
 
     def update(self, instance, validated_data):
@@ -850,3 +871,16 @@ class ProductSerializer(serializers.ModelSerializer):
             ret.pop('cost_price', None)
             
         return ret
+    
+from .models import CustomerPayment # Make sure to import the new model
+
+class CustomerPaymentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = models.CustomerPayment
+        fields = (
+            'id', 'customer', 'sale', 'amount', 'payment_date', 
+            'payment_method', 'reference', 'notes', 'created_by', 'created_by_name'
+        )
+        read_only_fields = ('id', 'payment_date', 'created_by')

@@ -457,3 +457,21 @@ class SystemSetting(models.Model):
 
     class Meta:
         db_table = 'system_settings'
+
+class CustomerPayment(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments')
+    sale = models.ForeignKey('api.Sale', null=True, blank=True, on_delete=models.SET_NULL) # Optional: link to specific bill
+    amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_method = models.CharField(max_length=50, blank=True, null=True) # Cash, Card, Transfer
+    reference = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL)
+
+    def __str__(self):
+        return f"{self.customer.name} paid {self.amount}"
+
+    class Meta:
+        db_table = 'customer_payments'
+        ordering = ['-payment_date']

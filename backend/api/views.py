@@ -9,7 +9,7 @@ from django.db.models import Sum, Count, F
 from django.utils import timezone
 
 from . import models
-from .serializers import ProductSerializer, AttendanceSerializer, EmployeeSerializer
+from .serializers import ProductSerializer, AttendanceSerializer, EmployeeSerializer, CustomerPaymentSerializer
 from rest_framework import filters
 from decimal import Decimal
 
@@ -858,30 +858,37 @@ class POLineViewSet(viewsets.ModelViewSet):
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
-    """
-    PurchaseOrder endpoints:
-      - list/retrieve/create/update/delete
-      - actions:
-        POST /api/purchase-orders/{id}/receive/
-          body: {
-            "lines": [{"poline_id": 1, "qty_received": 5}, ...],
-            "create_payment": {"amount": "1000.00", "payment_method": "...", "reference": "...", "notes": "..."}  # optional
-          }
-        POST /api/purchase-orders/{id}/complete/   # marks every line as fully received and updates stock
-        POST /api/purchase-orders/{id}/record-payment/  # shorthand to create a SupplierPayment for this PO
-    """
     queryset = models.PurchaseOrder.objects.all().order_by('-date', '-id')
     serializer_class = getattr(__import__('api.serializers', fromlist=['PurchaseOrderSerializer']), 'PurchaseOrderSerializer')
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter]
     search_fields = ['po_no', 'supplier__name', 'status']
 
+    # --- ADD THIS METHOD ---
+    def get_queryset(self):
+        qs = super().get_queryset()
+        supplier_id = self.request.query_params.get('supplier')
+        status_q = self.request.query_params.get('status')
+        
+        # Filter by Supplier ID
+        if supplier_id:
+            try:
+                qs = qs.filter(supplier__id=int(supplier_id))
+            except ValueError:
+                pass
+        
+        # Optional: Filter by status
+        if status_q:
+            qs = qs.filter(status=status_q)
+            
+        return qs
+    # -----------------------
+
     def perform_create(self, serializer):
-        # set created_by and auto-generate po_no if missing
+        # ... (keep existing logic) ...
         user = self.request.user if (self.request.user and self.request.user.is_authenticated) else None
         po = serializer.save(created_by=user)
         if not po.po_no:
-            # simple po_no generation: PO + id
             po.po_no = f"PO{po.id:06d}"
             po.save(update_fields=['po_no'])
 
@@ -1287,3 +1294,45 @@ class SystemSettingView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# api/views.py
+
+# ... existing imports ...
+from .serializers import CustomerPaymentSerializer
+
+class CustomerPaymentViewSet(viewsets.ModelViewSet):
+    """
+    Customer Payments:
+      - list/create
+      - filter by ?customer=<id>
+      - On create: Decrements customer.credited_amount automatically.
+    """
+    queryset = models.CustomerPayment.objects.all().order_by('-payment_date')
+    serializer_class = CustomerPaymentSerializer
+    permission_classes = [IsAdminOrStockEditor] # Staff can record payments
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['customer__name', 'reference', 'notes']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        cust_id = self.request.query_params.get('customer')
+        if cust_id:
+            qs = qs.filter(customer_id=cust_id)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        with transaction.atomic():
+            payment = serializer.save(created_by=user)
+            
+            # Logic: Payment reduces the debt (credited_amount)
+            customer = payment.customer
+            current_debt = customer.credited_amount or Decimal(0)
+            new_debt = current_debt - payment.amount
+            
+            # Prevent negative debt (optional, depends on business logic. keeping it >= 0 for safety)
+            if new_debt < 0:
+                new_debt = Decimal(0)
+            
+            customer.credited_amount = new_debt
+            customer.save(update_fields=['credited_amount'])

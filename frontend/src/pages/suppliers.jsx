@@ -3,11 +3,124 @@ import React, { useState, useMemo, useEffect } from 'react';
 import '../styles/suppliers.css';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
-import { Plus, Truck, Edit2, Trash2, Search } from 'lucide-react';
+import { Plus, Truck, Edit2, Trash2, Search, X, FileText, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 
-// NEW: Currency formatting helper
 const formatCurrency = (amount) =>
   `₨${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// --- NEW: Supplier History Modal ---
+function SupplierHistoryModal({ open, supplier, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && supplier) {
+      setLoading(true);
+      // Fetch POs and Supplier Payments in parallel
+      // Note: Backend must support ?supplier=ID for POs and ?supplier_id=ID for Payments
+      Promise.all([
+        api.get(`/purchase-orders/?supplier=${supplier.id}`),
+        api.get(`/supplier-payments/?supplier_id=${supplier.id}`)
+      ])
+      .then(([poRes, payRes]) => {
+        const pos = Array.isArray(poRes.data) ? poRes.data : poRes.data.results || [];
+        const pays = Array.isArray(payRes.data) ? payRes.data : payRes.data.results || [];
+
+        // Normalize Data
+        const unified = [
+          ...pos.map(p => ({
+            id: `po-${p.id}`,
+            date: p.date,
+            type: 'po',
+            amount: Number(p.total_amount),
+            desc: `PO #${p.po_no || p.id}`,
+            status: p.status, // e.g., 'placed', 'completed'
+            ref: p.notes
+          })),
+          ...pays.map(p => ({
+            id: `pay-${p.id}`,
+            date: p.payment_date,
+            type: 'payment',
+            amount: Number(p.amount),
+            desc: 'Payment Sent',
+            status: 'paid',
+            ref: p.reference || p.payment_method
+          }))
+        ];
+
+        // Sort by date descending (newest first)
+        unified.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setHistory(unified);
+      })
+      .catch(err => console.error("History fetch error", err))
+      .finally(() => setLoading(false));
+    }
+  }, [open, supplier]);
+
+  if (!open || !supplier) return null;
+
+  return (
+    <div className="sp-modal-overlay" onClick={onClose} style={{zIndex: 3000}}>
+      <div className="sp-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+        <div className="sp-modal-header">
+          <h3>History — {supplier.name}</h3>
+          <button className="icon-btn" onClick={onClose}><X size={20}/></button>
+        </div>
+        <div className="sp-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {loading ? <div className="sp-empty">Loading history...</div> : 
+           history.length === 0 ? <div className="sp-empty">No transaction history found.</div> : (
+            <div className="sp-table-wrap">
+              <table className="sp-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Reference</th>
+                    <th style={{textAlign: 'right'}}>Billed (Debit)</th>
+                    <th style={{textAlign: 'right'}}>Paid (Credit)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map(item => {
+                    const isPO = item.type === 'po';
+                    return (
+                      <tr key={item.id}>
+                        <td style={{fontSize: '0.9rem'}}>{new Date(item.date).toLocaleDateString()}</td>
+                        <td>
+                          {isPO ? (
+                            <span className="sp-badge" style={{background:'#e0e7ff', color:'#4338ca', padding:'4px 8px', borderRadius:'6px', fontSize:'0.75rem', fontWeight:'600'}}>
+                              <FileText size={12} style={{marginRight:4, verticalAlign:'middle'}}/> PO ({item.status})
+                            </span>
+                          ) : (
+                            <span className="sp-badge" style={{background:'#ecfdf5', color:'#047857', padding:'4px 8px', borderRadius:'6px', fontSize:'0.75rem', fontWeight:'600'}}>
+                              <ArrowUpRight size={12} style={{marginRight:4, verticalAlign:'middle'}}/> Payment
+                            </span>
+                          )}
+                        </td>
+                        <td style={{fontSize: '0.9rem', color: '#6b7280'}}>
+                          {item.desc} {item.ref ? `(${item.ref})` : ''}
+                        </td>
+                        <td style={{textAlign: 'right', fontWeight: isPO ? 600 : 400}}>
+                          {isPO ? formatCurrency(item.amount) : '-'}
+                        </td>
+                        <td style={{textAlign: 'right', fontWeight: !isPO ? 600 : 400, color: !isPO ? '#059669' : 'inherit'}}>
+                          {!isPO ? formatCurrency(item.amount) : '-'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="sp-modal-footer">
+          <button className="btn sp-btn-muted" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Suppliers() {
   const { user } = useAuth() || {};
@@ -16,8 +129,12 @@ export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [query, setQuery] = useState('');
+  
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState(null); // supplier being edited or null
+  const [historyOpen, setHistoryOpen] = useState(false); 
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
+  
+  const [editing, setEditing] = useState(null); 
   const [form, setForm] = useState({
     name: '',
     contact_name: '',
@@ -29,7 +146,7 @@ export default function Suppliers() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Load suppliers & purchase orders from backend
+  // Load suppliers & purchase orders
   async function loadSuppliers() {
     try {
       const resp = await api.get('/suppliers/');
@@ -37,7 +154,6 @@ export default function Suppliers() {
       setSuppliers(raw);
     } catch (err) {
       console.error('Failed to load suppliers', err);
-      alert('Could not load suppliers. Check backend/CORS. ' + (err?.response?.data ? JSON.stringify(err.response.data) : err.message));
     }
   }
 
@@ -48,7 +164,6 @@ export default function Suppliers() {
       setPurchaseOrders(raw);
     } catch (err) {
       console.error('Failed to load purchase orders', err);
-      // no alert — optional
     }
   }
 
@@ -65,7 +180,6 @@ export default function Suppliers() {
     return () => { mounted = false; };
   }, []);
 
-  // Compute outstanding per supplier (robust to different PO shapes)
   const supplierOutstanding = useMemo(() => {
     const outstandingMap = new Map();
     (purchaseOrders || []).forEach((po) => {
@@ -74,9 +188,7 @@ export default function Suppliers() {
       const balance = Math.max(0, total - paid);
 
       if (balance <= 0) return;
-
-      const status = (po.status || '').toString().toLowerCase();
-      if (status === 'cancelled') return;
+      if ((po.status || '').toString().toLowerCase() === 'cancelled') return;
 
       const supplierId =
         (typeof po.supplier === 'number' && po.supplier) ||
@@ -85,7 +197,6 @@ export default function Suppliers() {
         null;
 
       if (!supplierId) return;
-
       const current = outstandingMap.get(supplierId) || 0;
       outstandingMap.set(supplierId, current + balance);
     });
@@ -97,8 +208,6 @@ export default function Suppliers() {
     for (const v of supplierOutstanding.values()) t += v;
     return t;
   }, [supplierOutstanding]);
-
-  const totalSuppliers = suppliers.length;
 
   const visibleList = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,6 +239,12 @@ export default function Suppliers() {
     setModalOpen(true);
   }
 
+  // --- Handlers ---
+  function openHistory(supplier) {
+    setSelectedSupplier(supplier);
+    setHistoryOpen(true);
+  }
+
   function closeModal() {
     setModalOpen(false);
     setEditing(null);
@@ -140,7 +255,6 @@ export default function Suppliers() {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
   }
 
-  // Create / update via backend
   async function handleSave(e) {
     e && e.preventDefault();
     if (!form.name || !form.name.trim()) return alert('Supplier name required');
@@ -148,13 +262,11 @@ export default function Suppliers() {
     setSaving(true);
     try {
       if (editing) {
-        // PATCH supplier
         const resp = await api.patch(`/suppliers/${editing.id}/`, { ...form });
         const updated = resp.data;
         setSuppliers((prev) => prev.map((s) => (String(s.id) === String(editing.id) ? updated : s)));
         alert('Supplier updated');
       } else {
-        // POST new supplier
         const resp = await api.post('/suppliers/', { ...form });
         const created = resp.data;
         setSuppliers((prev) => [created, ...prev]);
@@ -164,7 +276,6 @@ export default function Suppliers() {
     } catch (err) {
       console.error('Save supplier failed', err);
       alert('Save failed: ' + (err?.response?.data || err.message || String(err)));
-      setSaving(false);
     } finally {
       setSaving(false);
     }
@@ -179,7 +290,7 @@ export default function Suppliers() {
       alert('Supplier deleted');
     } catch (err) {
       console.error('Delete failed', err);
-      alert('Delete failed: ' + (err?.response?.data || err.message || String(err)));
+      alert('Delete failed');
     }
   }
 
@@ -195,7 +306,7 @@ export default function Suppliers() {
           <div className="sp-stats">
             <div className="sp-stat-card c-purple">
               <div className="sp-stat-title">Total Suppliers</div>
-              <div className="sp-stat-value">{totalSuppliers}</div>
+              <div className="sp-stat-value">{suppliers.length}</div>
             </div>
             <div className="sp-stat-card c-red">
               <div className="sp-stat-title">Total Outstanding</div>
@@ -208,7 +319,7 @@ export default function Suppliers() {
               <Plus size={16} /> Add Supplier
             </button>
           ) : (
-            <button className="btn sp-btn-muted" onClick={() => alert('Staff cannot add suppliers')} disabled>
+            <button className="btn sp-btn-muted" disabled>
               <Plus size={16} /> Add Supplier
             </button>
           )}
@@ -221,8 +332,7 @@ export default function Suppliers() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search suppliers by name, contact, phone or email..."
-            aria-label="Search suppliers"
+            placeholder="Search suppliers..."
           />
         </div>
       </div>
@@ -238,7 +348,7 @@ export default function Suppliers() {
           ) : visibleList.length === 0 ? (
             <div className="sp-empty">No suppliers found</div>
           ) : (
-            <table className="sp-table" role="table" aria-label="Supplier list">
+            <table className="sp-table">
               <thead>
                 <tr>
                   <th>Company</th>
@@ -254,7 +364,12 @@ export default function Suppliers() {
                 {visibleList.map((s) => {
                   const outstanding = supplierOutstanding.get(s.id) || 0;
                   return (
-                    <tr key={s.id || s.pk}>
+                    <tr 
+                      key={s.id || s.pk} 
+                      onClick={() => openHistory(s)} 
+                      style={{ cursor: 'pointer' }}
+                      title="Click to view history"
+                    >
                       <td className="sp-prodcol"><span className="sp-prod-name">{s.name}</span></td>
                       <td>{s.contact_name || s.contact || '—'}</td>
                       <td>{s.phone || '—'}</td>
@@ -264,7 +379,7 @@ export default function Suppliers() {
                         {formatCurrency(outstanding)}
                       </td>
                       {isAdmin && (
-                        <td className="sp-actions-col">
+                        <td className="sp-actions-col" onClick={e => e.stopPropagation()}>
                           <button className="icon-btn" title="Edit" onClick={() => openEdit(s)}><Edit2 size={16} /></button>
                           <button className="icon-btn danger" title="Delete" onClick={() => handleDelete(s)}><Trash2 size={16} /></button>
                         </td>
@@ -278,50 +393,45 @@ export default function Suppliers() {
         </div>
       </div>
 
-      {/* modal */}
+      {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="sp-modal-overlay" onClick={closeModal}>
           <div className="sp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sp-modal-header">
               <h3>{editing ? 'Edit Supplier' : 'Add Supplier'}</h3>
             </div>
-
             <div className="sp-modal-body">
               <form id="supplier-form" onSubmit={(e) => { e.preventDefault(); handleSave(e); }}>
                 <div className="sp-row">
                   <div className="sp-field">
                     <label className="sp-field-label">Company name</label>
-                    <input value={form.name} onChange={updateField('name')} placeholder="Supplier company name" required />
+                    <input value={form.name} onChange={updateField('name')} required />
                   </div>
                   <div className="sp-field">
                     <label className="sp-field-label">Contact person</label>
-                    <input value={form.contact_name} onChange={updateField('contact_name')} placeholder="Contact name" />
+                    <input value={form.contact_name} onChange={updateField('contact_name')} />
                   </div>
                 </div>
-
                 <div className="sp-row">
                   <div className="sp-field">
                     <label className="sp-field-label">Phone</label>
-                    <input value={form.phone} onChange={updateField('phone')} placeholder="+1234567890" />
+                    <input value={form.phone} onChange={updateField('phone')} />
                   </div>
                   <div className="sp-field">
                     <label className="sp-field-label">Email</label>
-                    <input type="email" value={form.email} onChange={updateField('email')} placeholder="contact@vendor.com" />
+                    <input type="email" value={form.email} onChange={updateField('email')} />
                   </div>
                 </div>
-
                 <div className="sp-field">
                   <label className="sp-field-label">Address</label>
-                  <input value={form.address} onChange={updateField('address')} placeholder="Street, City, Country" />
+                  <input value={form.address} onChange={updateField('address')} />
                 </div>
-
                 <div className="sp-field">
-                  <label className="sp-field-label">Notes (optional)</label>
-                  <textarea value={form.notes} onChange={updateField('notes')} rows={3} placeholder="Any notes"></textarea>
+                  <label className="sp-field-label">Notes</label>
+                  <textarea value={form.notes} onChange={updateField('notes')} rows={3}></textarea>
                 </div>
               </form>
             </div>
-
             <div className="sp-modal-footer">
               <button className="btn sp-btn-muted" onClick={closeModal}>Cancel</button>
               <button className="btn sp-btn-primary" type="submit" form="supplier-form" disabled={saving} style={{ marginLeft: 8 }}>
@@ -331,6 +441,13 @@ export default function Suppliers() {
           </div>
         </div>
       )}
+
+      {/* History Modal */}
+      <SupplierHistoryModal 
+        open={historyOpen} 
+        supplier={selectedSupplier} 
+        onClose={() => setHistoryOpen(false)} 
+      />
     </div>
   );
 }

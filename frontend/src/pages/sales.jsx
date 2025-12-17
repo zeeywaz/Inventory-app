@@ -22,12 +22,11 @@ function StatCard({ title, value, subValue, color }) {
 
 const fmtCurrency = (v) => `₨ ${Number(v || 0).toFixed(2)}`;
 
-// --- Quick Customer Add/Edit Modal (Updated) ---
+// --- Quick Customer Add/Edit Modal ---
 function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const [saving, setSaving] = useState(false);
 
-  // Reset or Populate form
   useEffect(() => {
     if (isOpen) {
       if (customerToEdit) {
@@ -36,9 +35,10 @@ function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null 
           phone: customerToEdit.phone || '',
           email: customerToEdit.email || '',
           address: customerToEdit.address || '',
+          notes: customerToEdit.notes || '',
         });
       } else {
-        setForm({ name: '', phone: '', email: '', address: '' });
+        setForm({ name: '', phone: '', email: '', address: '', notes: '' });
       }
     }
   }, [isOpen, customerToEdit]);
@@ -51,10 +51,8 @@ function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null 
     try {
       let res;
       if (customerToEdit) {
-        // EDIT Existing Customer
         res = await api.patch(`/customers/${customerToEdit.id}/`, form);
       } else {
-        // CREATE New Customer
         res = await api.post('/customers/', form);
       }
       onSuccess(res.data);
@@ -68,64 +66,41 @@ function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null 
   }
 
   return (
-    // FIX: High Z-Index to appear ABOVE the Bill Modal
     <div className="sales-modal-overlay" onClick={onClose} style={{ zIndex: 10000, position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
-      <div className="sales-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div className="sales-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
         <div className="sales-modal-header">
           <h3>{customerToEdit ? 'Edit Customer' : 'Add New Customer'}</h3>
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
         
         <div className="sales-modal-body">
-          {/* Row 1: Name & Phone */}
           <div className="form-row">
             <div className="form-group" style={{flex: 1}}>
               <label>Name <span style={{color:'red'}}>*</span></label>
-              <input 
-                className="clean-input" 
-                autoFocus 
-                value={form.name} 
-                onChange={e => setForm({...form, name: e.target.value})} 
-                placeholder="Customer Name" 
-              />
+              <input className="clean-input" autoFocus value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Customer Name" />
             </div>
             <div className="form-group" style={{flex: 1}}>
               <label>Phone <span style={{color:'red'}}>*</span></label>
-              <input 
-                className="clean-input" 
-                value={form.phone} 
-                onChange={e => setForm({...form, phone: e.target.value})} 
-                placeholder="077..." 
-              />
+              <input className="clean-input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="077..." />
             </div>
           </div>
-
-          {/* Row 2: Email */}
           <div className="form-group" style={{marginTop: 12}}>
             <label>Email</label>
-            <input 
-              className="clean-input" 
-              value={form.email} 
-              onChange={e => setForm({...form, email: e.target.value})} 
-              placeholder="optional@email.com" 
-            />
+            <input className="clean-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="optional@email.com" />
           </div>
-
-          {/* Row 3: Address (Full Width) */}
           <div className="form-group" style={{marginTop: 12}}>
             <label>Address</label>
-            <input 
-              className="clean-input" 
-              value={form.address} 
-              onChange={e => setForm({...form, address: e.target.value})} 
-              placeholder="House No, Street, City" 
-            />
+            <input className="clean-input" value={form.address} onChange={e => setForm({...form, address: e.target.value})} placeholder="House No, Street, City" />
+          </div>
+          <div className="form-group" style={{marginTop: 12}}>
+            <label>Notes</label>
+            <input className="clean-input" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Optional notes" />
           </div>
         </div>
         
         <div className="sales-modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ borderRadius: '8px' }}>
             {saving ? 'Saving...' : (customerToEdit ? 'Update Customer' : 'Create Customer')}
           </button>
         </div>
@@ -134,9 +109,7 @@ function QuickCustomerModal({ isOpen, onClose, onSuccess, customerToEdit = null 
   );
 }
 
-// ... (Rest of the file: ReturnModal, SaleDetailModal, NewBillModal, Sales component remain unchanged from previous step)
-// Ensure you include the full file content if you are copy-pasting the entire file.
-
+// --- Return Products Modal ---
 function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   const [returnMap, setReturnMap] = useState({}); 
   const [saving, setSaving] = useState(false);
@@ -273,9 +246,13 @@ function ReturnModal({ isOpen, onClose, sale, onConfirm }) {
   );
 }
 
-function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
+// --- Sale Detail Modal ---
+function SaleDetailModal({ isOpen, onClose, sale, customers = [], onOpenReturn }) {
   if (!isOpen || !sale) return null;
   const get = (k) => sale[k] ?? sale[k === 'totalAmount' ? 'total_amount' : k];
+
+  // Look up customer name here as well
+  const customerName = sale.customer_name || customers.find(c => c.id === sale.customer)?.name || 'Walk-in';
 
   return (
     <div className="sales-modal-overlay" onClick={onClose} style={{ zIndex: 9000 }}>
@@ -293,7 +270,7 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
             </div>
             <div>
               <label>Customer</label>
-              <div>{sale.customer_name || sale.customerName || 'Walk-in'}</div>
+              <div style={{fontWeight: 600}}>{customerName}</div>
             </div>
             <div>
               <label>Vehicle Plate</label>
@@ -359,6 +336,8 @@ function SaleDetailModal({ isOpen, onClose, sale, onOpenReturn }) {
   );
 }
 
+// --- Create/Edit Bill Modal ---
+
 function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, onAddCustomer, onUpdateCustomer, existing = null, saving = false }) {
   const { user } = useAuth();
   const { settings } = useSettings(); 
@@ -414,6 +393,44 @@ function NewBillModal({ isOpen, onClose, products = [], customers = [], onSave, 
     }
   }, [isOpen, existing]);
 
+  async function handleSubmit() {
+    if (lines.length === 0) {
+      setError("Please add at least one item.");
+      return;
+    }
+    const payload = {
+      date,
+      customer: customerId || null,
+      payment_method: paymentMethod,
+      
+      // --- FIX: Explicitly send is_credit flag ---
+      is_credit: paymentMethod === 'credit',
+      
+      vehicle_number: vehicleNumber || '',
+      notes,
+      total_amount: subtotal,
+      lines: lines.map(l => ({
+        id: l.id,
+        product: l.productId,
+        quantity: l.quantity,
+        unit_price: l.unitPrice
+      }))
+    };
+
+    try {
+      if (existing) {
+        const res = await api.patch(`/sales/${existing.id}/`, payload);
+        onSave(res.data);
+      } else {
+        const res = await api.post('/sales/', payload);
+        onSave(res.data);
+      }
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save sale. Check inputs.");
+    }
+  }
   // --- Walk-in Logic (No Credit) ---
   useEffect(() => {
     if (!customerId && paymentMethod === 'credit') {
@@ -834,12 +851,18 @@ export default function Sales() {
               {loading ? <tr><td colSpan="7">Loading...</td></tr> : sales.map(s => {
                 const total = Number(s.total_amount);
                 const isHidden = !isAdmin && settings.hideBillThreshold > 0 && total > settings.hideBillThreshold;
+                
+                // --- FIX: Lookup customer name properly ---
+                const customerName = s.customer_name || customers.find(c => c.id === s.customer)?.name || 'Walk-in';
 
                 return (
                   <tr key={s.id} onClick={() => !isHidden && setDetailSale(s)} className={isHidden ? "" : "clickable-row"} style={{opacity: isHidden ? 0.5 : 1}}>
                     <td className="mono-font">#{String(s.sale_no || s.id).slice(-6)}</td>
                     <td>{new Date(s.date).toLocaleDateString()}</td>
-                    <td>{isHidden ? '******' : (s.customer_name || 'Walk-in')}</td>
+                    
+                    {/* Display the resolved customer name */}
+                    <td>{isHidden ? '******' : customerName}</td>
+                    
                     <td style={{fontSize: '0.85rem', color:'#666'}}>{s.vehicle_number || '-'}</td>
                     <td style={{textTransform: 'capitalize'}}>{s.payment_method}</td>
                     <td style={{fontWeight: 'bold'}}>
@@ -879,13 +902,14 @@ export default function Sales() {
         customers={customers}
         onSave={handleSave}
         onAddCustomer={handleCustomerAdd} 
-        onUpdateCustomer={handleCustomerUpdate} // Pass update handler
+        onUpdateCustomer={handleCustomerUpdate} 
       />
 
       <SaleDetailModal 
         isOpen={!!detailSale} 
         onClose={() => setDetailSale(null)} 
         sale={detailSale} 
+        customers={customers} // Pass customers list to modal
         onOpenReturn={(s) => setReturnSale(s)}
       />
 
